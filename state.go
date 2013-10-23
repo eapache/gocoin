@@ -1,6 +1,11 @@
 package main
 
+import (
+	"crypto/rsa"
+)
+
 type State struct {
-	primary   *BlockChain
-	alternate []*BlockChain
+	Primary    *BlockChain
+	Alternate  []*BlockChain
+	ActiveKeys map[rsa.PublicKey]*Transaction
 }

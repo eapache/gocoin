@@ -1,15 +1,23 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/gob"
 	"math/rand"
 	"time"
 )
 
 type Block struct {
-	Hashable
 	PrevHash []byte
 	Nonce    uint32
 	Txns     []Transaction
+}
+
+func (b *Block) Hash() []byte {
+	hasher := sha256.New()
+	encoder := gob.NewEncoder(hasher)
+	encoder.Encode(b)
+	return hasher.Sum(nil)
 }
 
 func (b *Block) Verify() bool {
