@@ -16,7 +16,10 @@ type Block struct {
 func (b *Block) Hash() []byte {
 	hasher := sha256.New()
 	encoder := gob.NewEncoder(hasher)
-	encoder.Encode(b)
+	err := encoder.Encode(b)
+	if err != nil {
+		panic(err)
+	}
 	return hasher.Sum(nil)
 }
 

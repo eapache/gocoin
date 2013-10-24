@@ -37,7 +37,10 @@ func (txn *Transaction) Hash() []byte {
 		txn.Inputs[i].Signature = nil
 	}
 
-	encoder.Encode(txn)
+	err := encoder.Encode(txn)
+	if err != nil {
+		panic(err)
+	}
 
 	for i := range txn.Inputs {
 		txn.Inputs[i].Signature = tmpSigs[i]
