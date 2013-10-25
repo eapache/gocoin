@@ -12,6 +12,7 @@ func doUI() {
 	fmt.Print("> ")
 	for scanner.Scan() {
 		switch scanner.Text() {
+		case "": // do nothing, ignore
 		case "help":
 			// TODO print help
 		case "quit":

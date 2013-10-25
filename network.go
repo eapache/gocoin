@@ -48,7 +48,8 @@ type PeerNetwork struct {
 }
 
 func NewPeerNetwork(startPeer string) (network *PeerNetwork, err error) {
-	tmpAddrs := make([]string, 0)
+	var msg NetworkMessage
+	var peerAddrs []string
 
 	if startPeer != "" {
 		conn, err := net.Dial("tcp", startPeer)
@@ -60,23 +61,30 @@ func NewPeerNetwork(startPeer string) (network *PeerNetwork, err error) {
 		encoder := gob.NewEncoder(conn)
 		decoder := gob.NewDecoder(conn)
 
-		err = encoder.Encode(PeerListRequest)
+		err = encoder.Encode(&NetworkMessage{Type: PeerListRequest})
 		if err != nil {
 			return nil, err
 		}
 
-		err = decoder.Decode(&tmpAddrs)
+		err = decoder.Decode(&msg)
 		if err != nil {
 			return nil, err
 		}
 
-		if len(tmpAddrs) == 0 {
-			return nil, errors.New("Initial peer returned empty peer list")
+		if msg.Type != PeerListResponse {
+			return nil, errors.New("Received message not a PeerListResponse")
+		}
+
+		switch v := msg.Value.(type) {
+		case []string:
+			peerAddrs = v
+		default:
+			return nil, errors.New("Unknown value in PeerListResponse")
 		}
 	}
 
 	network = &PeerNetwork{
-		peers:  make(map[string]*PeerConn, len(tmpAddrs)),
+		peers:  make(map[string]*PeerConn, len(peerAddrs)),
 		events: make(chan *NetworkMessage),
 	}
 	network.server, err = net.Listen("tcp", ":0")
@@ -84,7 +92,7 @@ func NewPeerNetwork(startPeer string) (network *PeerNetwork, err error) {
 		return nil, err
 	}
 
-	for _, addr := range tmpAddrs {
+	for _, addr := range peerAddrs {
 		conn, err := net.Dial("tcp", addr)
 		if err != nil {
 			continue
