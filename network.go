@@ -34,6 +34,7 @@ type PeerNetwork struct {
 	peers map[string]*PeerConn
 	server net.Listener
 	events chan PeerEvent
+	closing bool
 }
 
 func NewPeerNetwork(startPeer string) (*PeerNetwork, error) {
@@ -97,6 +98,7 @@ func NewPeerNetwork(startPeer string) (*PeerNetwork, error) {
 	}
 
 	go network.AcceptNewConns()
+	go network.HandleEvents()
 
 	return network, nil
 }
@@ -158,6 +160,42 @@ func (network *PeerNetwork) ReceiveFromConn(addr string) {
 			network.events <- PeerEvent{addr, errors.New("Unknown message type received")}
 			return
 		}
+	}
+}
+
+func (network *PeerNetwork) HandleEvents() {
+	for event := range network.events {
+		switch val := event.value.(type) {
+		case error:
+			if event.addr == "" {
+				if network.closing {
+					if len(network.peers) == 0 {
+						close(network.events)
+						return
+					}
+				} else {
+					panic(val)
+				}
+			} else {
+				delete(network.peers, event.addr)
+				if len(network.peers) == 0 {
+					if network.closing {
+						close(network.events)
+						return
+					} else {
+						panic(val)
+					}
+				}
+			}
+		}
+	}
+}
+
+func (network *PeerNetwork) Close() {
+	network.closing = true
+	network.server.Close()
+	for _, peer := range network.peers {
+		peer.base.Close()
 	}
 }
 
