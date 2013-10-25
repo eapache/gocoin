@@ -10,15 +10,12 @@ type MsgType int32
 
 const (
 	PeerListRequest  MsgType = iota
-	PeerListResponse MsgType = iota
 	PeerBroadcast    MsgType = iota
 
 	BlockChainRequest  MsgType = iota
-	BlockChainResponse MsgType = iota
 	BlockBroadcast     MsgType = iota
 
 	TransactionRequest   MsgType = iota
-	TransactionResponse  MsgType = iota
 	TransactionBroadcast MsgType = iota
 )
 
@@ -28,9 +25,15 @@ type PeerConn struct {
 	decoder *gob.Decoder
 }
 
+type PeerEvent struct {
+	addr string
+	value interface{}
+}
+
 type PeerNetwork struct {
 	peers map[string]*PeerConn
 	server net.Listener
+	events chan PeerEvent
 }
 
 func NewPeerNetwork(startPeer string) (*PeerNetwork, error) {
@@ -58,7 +61,10 @@ func NewPeerNetwork(startPeer string) (*PeerNetwork, error) {
 		return nil, errors.New("Initial peer returned empty peer list")
 	}
 
-	network := &PeerNetwork{peers: make(map[string]*PeerConn, len(tmpAddrs))}
+	network := &PeerNetwork{
+		peers: make(map[string]*PeerConn, len(tmpAddrs)),
+		events: make(chan PeerEvent),
+	}
 	network.server, err = net.Listen("udp", ":0")
 	if err != nil {
 		return nil, err
@@ -87,7 +93,78 @@ func NewPeerNetwork(startPeer string) (*PeerNetwork, error) {
 		decoder := gob.NewDecoder(conn)
 
 		network.peers[addr] = &PeerConn{conn, encoder, decoder}
+		go network.ReceiveFromConn(addr)
 	}
 
+	go network.AcceptNewConns()
+
 	return network, nil
+}
+
+func (network *PeerNetwork) AcceptNewConns() {
+	for {
+		conn, err := network.server.Accept()
+
+		if err != nil {
+			network.events <- PeerEvent{"", err}
+			return
+		}
+
+		encoder := gob.NewEncoder(conn)
+		decoder := gob.NewDecoder(conn)
+
+		var nextType MsgType
+		err = decoder.Decode(&nextType)
+		if err != nil {
+			conn.Close()
+			continue
+		}
+
+		switch nextType {
+		case PeerListRequest:
+			peerList := network.PeerAddrList()
+			err = encoder.Encode(peerList)
+			conn.Close()
+		case PeerBroadcast:
+			var addr string
+			err = decoder.Decode(&addr)
+			if err != nil || network.peers[addr] != nil {
+				conn.Close()
+				continue
+			}
+			network.peers[addr] = &PeerConn{conn, encoder, decoder}
+			go network.ReceiveFromConn(addr)
+		default:
+			conn.Close()
+		}
+	}
+}
+
+func (network *PeerNetwork) ReceiveFromConn(addr string) {
+	peer := network.peers[addr]
+
+	var err error
+	var nextType MsgType
+
+	for {
+		err = peer.decoder.Decode(&nextType)
+		if err != nil {
+			network.events <- PeerEvent{addr, err}
+			return
+		}
+
+		switch nextType {
+		default:
+			network.events <- PeerEvent{addr, errors.New("Unknown message type received")}
+			return
+		}
+	}
+}
+
+func (network *PeerNetwork) PeerAddrList() []string {
+	list := make([]string, 0, len(network.peers))
+	for addr, _ := range network.peers {
+		list = append(list, addr)
+	}
+	return list
 }
