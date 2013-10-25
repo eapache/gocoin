@@ -4,66 +4,72 @@ import (
 	"encoding/gob"
 	"errors"
 	"net"
+	"sync"
 )
 
 type MsgType int32
 
 const (
-	PeerListRequest  MsgType = iota
-	PeerBroadcast    MsgType = iota
+	PeerListRequest MsgType = iota
+	PeerBroadcast   MsgType = iota
 
-	BlockChainRequest  MsgType = iota
-	BlockBroadcast     MsgType = iota
+	BlockChainRequest MsgType = iota
+	BlockBroadcast    MsgType = iota
 
 	TransactionRequest   MsgType = iota
 	TransactionBroadcast MsgType = iota
 )
 
 type PeerConn struct {
-	base net.Conn
+	base    net.Conn
 	encoder *gob.Encoder
 	decoder *gob.Decoder
+	txLock  sync.Mutex
 }
 
 type PeerEvent struct {
-	addr string
+	addr  string
 	value interface{}
 }
 
 type PeerNetwork struct {
-	peers map[string]*PeerConn
-	server net.Listener
-	events chan PeerEvent
-	closing bool
+	peers    map[string]*PeerConn
+	server   net.Listener
+	events   chan PeerEvent
+	closing  bool
+	peerLock sync.RWMutex
 }
 
-func NewPeerNetwork(startPeer string) (*PeerNetwork, error) {
-	conn, err := net.Dial("udp", startPeer)
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
-
-	encoder := gob.NewEncoder(conn)
-	decoder := gob.NewDecoder(conn)
-
-	err = encoder.Encode(PeerListRequest)
-	if err != nil {
-		return nil, err
-	}
-
+func NewPeerNetwork(startPeer string) (network *PeerNetwork, err error) {
 	tmpAddrs := make([]string, 0)
-	err = decoder.Decode(&tmpAddrs)
-	if err != nil {
-		return nil, err
+
+	if startPeer != "" {
+		conn, err := net.Dial("udp", startPeer)
+		if err != nil {
+			return nil, err
+		}
+		defer conn.Close()
+
+		encoder := gob.NewEncoder(conn)
+		decoder := gob.NewDecoder(conn)
+
+		err = encoder.Encode(PeerListRequest)
+		if err != nil {
+			return nil, err
+		}
+
+		err = decoder.Decode(&tmpAddrs)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(tmpAddrs) == 0 {
+			return nil, errors.New("Initial peer returned empty peer list")
+		}
 	}
 
-	if len(tmpAddrs) == 0 {
-		return nil, errors.New("Initial peer returned empty peer list")
-	}
-
-	network := &PeerNetwork{
-		peers: make(map[string]*PeerConn, len(tmpAddrs)),
+	network = &PeerNetwork{
+		peers:  make(map[string]*PeerConn, len(tmpAddrs)),
 		events: make(chan PeerEvent),
 	}
 	network.server, err = net.Listen("udp", ":0")
@@ -93,7 +99,7 @@ func NewPeerNetwork(startPeer string) (*PeerNetwork, error) {
 
 		decoder := gob.NewDecoder(conn)
 
-		network.peers[addr] = &PeerConn{conn, encoder, decoder}
+		network.peers[addr] = &PeerConn{base: conn, encoder: encoder, decoder: decoder}
 		go network.ReceiveFromConn(addr)
 	}
 
@@ -130,12 +136,15 @@ func (network *PeerNetwork) AcceptNewConns() {
 		case PeerBroadcast:
 			var addr string
 			err = decoder.Decode(&addr)
+			network.peerLock.Lock()
 			if err != nil || network.peers[addr] != nil {
+				network.peerLock.Unlock()
 				conn.Close()
 				continue
 			}
-			network.peers[addr] = &PeerConn{conn, encoder, decoder}
+			network.peers[addr] = &PeerConn{base: conn, encoder: encoder, decoder: decoder}
 			go network.ReceiveFromConn(addr)
+			network.peerLock.Unlock()
 		default:
 			conn.Close()
 		}
@@ -177,7 +186,9 @@ func (network *PeerNetwork) HandleEvents() {
 					panic(val)
 				}
 			} else {
+				network.peerLock.Lock()
 				delete(network.peers, event.addr)
+				network.peerLock.Unlock()
 				if len(network.peers) == 0 {
 					if network.closing {
 						close(network.events)
@@ -200,6 +211,9 @@ func (network *PeerNetwork) Close() {
 }
 
 func (network *PeerNetwork) PeerAddrList() []string {
+	network.peerLock.RLock()
+	defer network.peerLock.RUnlock()
+
 	list := make([]string, 0, len(network.peers))
 	for addr, _ := range network.peers {
 		list = append(list, addr)
