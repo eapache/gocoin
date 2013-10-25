@@ -24,7 +24,6 @@ type PeerConn struct {
 	base    net.Conn
 	encoder *gob.Encoder
 	decoder *gob.Decoder
-	txLock  sync.Mutex
 }
 
 type PeerEvent struct {
