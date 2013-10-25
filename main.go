@@ -6,4 +6,11 @@ import (
 
 func main() {
 	flag.Parse()
+
+	network, err := NewPeerNetwork("")
+	if err != nil {
+		panic(err)
+	}
+
+	network.Close()
 }
