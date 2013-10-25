@@ -10,15 +10,28 @@ import (
 type MsgType int32
 
 const (
-	PeerListRequest MsgType = iota
-	PeerBroadcast   MsgType = iota
+	PeerListRequest  MsgType = iota
+	PeerListResponse MsgType = iota
+	PeerBroadcast    MsgType = iota
 
-	BlockChainRequest MsgType = iota
-	BlockBroadcast    MsgType = iota
+	BlockChainRequest  MsgType = iota
+	BlockChainResponse MsgType = iota
+	BlockBroadcast     MsgType = iota
 
 	TransactionRequest   MsgType = iota
+	TransactionResponse  MsgType = iota
 	TransactionBroadcast MsgType = iota
+
+	Error MsgType = iota
 )
+
+type NetworkMessage struct {
+	Type  MsgType
+	ID    uint // for request/response matching
+	Value interface{}
+
+	addr string // filled on the receiving side
+}
 
 type PeerConn struct {
 	base    net.Conn
@@ -26,15 +39,10 @@ type PeerConn struct {
 	decoder *gob.Decoder
 }
 
-type PeerEvent struct {
-	addr  string
-	value interface{}
-}
-
 type PeerNetwork struct {
 	peers    map[string]*PeerConn
 	server   net.Listener
-	events   chan PeerEvent
+	events   chan *NetworkMessage
 	closing  bool
 	peerLock sync.RWMutex
 }
@@ -69,7 +77,7 @@ func NewPeerNetwork(startPeer string) (network *PeerNetwork, err error) {
 
 	network = &PeerNetwork{
 		peers:  make(map[string]*PeerConn, len(tmpAddrs)),
-		events: make(chan PeerEvent),
+		events: make(chan *NetworkMessage),
 	}
 	network.server, err = net.Listen("udp", ":0")
 	if err != nil {
@@ -113,37 +121,39 @@ func (network *PeerNetwork) AcceptNewConns() {
 		conn, err := network.server.Accept()
 
 		if err != nil {
-			network.events <- PeerEvent{"", err}
+			network.events <- &NetworkMessage{Error, 0, err, ""}
 			return
 		}
 
 		encoder := gob.NewEncoder(conn)
 		decoder := gob.NewDecoder(conn)
 
-		var nextType MsgType
-		err = decoder.Decode(&nextType)
+		var msg NetworkMessage
+		err = decoder.Decode(&msg)
 		if err != nil {
 			conn.Close()
 			continue
 		}
 
-		switch nextType {
+		switch msg.Type {
 		case PeerListRequest:
-			peerList := network.PeerAddrList()
-			err = encoder.Encode(peerList)
+			response := NetworkMessage{Type: PeerListResponse, ID: msg.ID, Value: network.PeerAddrList()}
+			encoder.Encode(&response) // XXX anything to handle error?
 			conn.Close()
 		case PeerBroadcast:
-			var addr string
-			err = decoder.Decode(&addr)
-			network.peerLock.Lock()
-			if err != nil || network.peers[addr] != nil {
+			switch addr := msg.Value.(type) {
+			case string:
+				network.peerLock.Lock()
+				if !network.closing && network.peers[addr] == nil {
+					network.peers[addr] = &PeerConn{base: conn, encoder: encoder, decoder: decoder}
+					go network.ReceiveFromConn(addr)
+				} else {
+					conn.Close()
+				}
 				network.peerLock.Unlock()
+			default:
 				conn.Close()
-				continue
 			}
-			network.peers[addr] = &PeerConn{base: conn, encoder: encoder, decoder: decoder}
-			go network.ReceiveFromConn(addr)
-			network.peerLock.Unlock()
 		default:
 			conn.Close()
 		}
@@ -154,46 +164,44 @@ func (network *PeerNetwork) ReceiveFromConn(addr string) {
 	peer := network.peers[addr]
 
 	var err error
-	var nextType MsgType
+	var msg NetworkMessage
 
 	for {
-		err = peer.decoder.Decode(&nextType)
+		err = peer.decoder.Decode(&msg)
 		if err != nil {
-			network.events <- PeerEvent{addr, err}
+			network.events <- &NetworkMessage{Error, 0, err, addr}
 			return
 		}
 
-		switch nextType {
-		default:
-			network.events <- PeerEvent{addr, errors.New("Unknown message type received")}
-			return
-		}
+		msg.addr = addr
+
+		network.events <- &msg
 	}
 }
 
 func (network *PeerNetwork) HandleEvents() {
-	for event := range network.events {
-		switch val := event.value.(type) {
-		case error:
-			if event.addr == "" {
+	for msg := range network.events {
+		switch msg.Type {
+		case Error:
+			if msg.addr == "" {
 				if network.closing {
 					if len(network.peers) == 0 {
 						close(network.events)
 						return
 					}
 				} else {
-					panic(val)
+					panic(msg.Value)
 				}
 			} else {
 				network.peerLock.Lock()
-				delete(network.peers, event.addr)
+				delete(network.peers, msg.addr)
 				network.peerLock.Unlock()
 				if len(network.peers) == 0 {
 					if network.closing {
 						close(network.events)
 						return
 					} else {
-						panic(val)
+						panic(msg.Value)
 					}
 				}
 			}
@@ -202,6 +210,9 @@ func (network *PeerNetwork) HandleEvents() {
 }
 
 func (network *PeerNetwork) Close() {
+	network.peerLock.Lock()
+	defer network.peerLock.Unlock()
+
 	network.closing = true
 	network.server.Close()
 	for _, peer := range network.peers {
