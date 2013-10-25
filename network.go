@@ -51,7 +51,7 @@ func NewPeerNetwork(startPeer string) (network *PeerNetwork, err error) {
 	tmpAddrs := make([]string, 0)
 
 	if startPeer != "" {
-		conn, err := net.Dial("udp", startPeer)
+		conn, err := net.Dial("tcp", startPeer)
 		if err != nil {
 			return nil, err
 		}
@@ -79,13 +79,13 @@ func NewPeerNetwork(startPeer string) (network *PeerNetwork, err error) {
 		peers:  make(map[string]*PeerConn, len(tmpAddrs)),
 		events: make(chan *NetworkMessage),
 	}
-	network.server, err = net.Listen("udp", ":0")
+	network.server, err = net.Listen("tcp", ":0")
 	if err != nil {
 		return nil, err
 	}
 
 	for _, addr := range tmpAddrs {
-		conn, err := net.Dial("udp", addr)
+		conn, err := net.Dial("tcp", addr)
 		if err != nil {
 			continue
 		}

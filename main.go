@@ -12,5 +12,7 @@ func main() {
 		panic(err)
 	}
 
+        doUI()
+
 	network.Close()
 }
