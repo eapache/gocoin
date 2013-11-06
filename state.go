@@ -7,18 +7,25 @@ import (
 	"time"
 )
 
+type signal int
+
+const (
+	sigNewBlock signal = iota
+	sigQuit     signal = iota
+)
+
 type State struct {
 	primary    *BlockChain
 	alternates []*BlockChain
-	network *PeerNetwork
-	wallet *Wallet
+	network    *PeerNetwork
+	wallet     *Wallet
 
-	txnLock sync.Mutex
-	pendingTxns []*Transaction
+	txnLock        sync.Mutex
+	pendingTxns    []*Transaction
 	txnsInProgress []*Transaction
-	activeKeys map[rsa.PublicKey]*Transaction
+	activeKeys     map[rsa.PublicKey]*Transaction
 
-	restart chan bool
+	signals chan signal
 }
 
 func NewState(initialPeer string) *State {
@@ -26,7 +33,7 @@ func NewState(initialPeer string) *State {
 	s.primary = &BlockChain{}
 	s.activeKeys = make(map[rsa.PublicKey]*Transaction)
 	s.wallet = NewWallet()
-	s.restart = make(chan bool)
+	s.signals = make(chan signal)
 
 	var err error
 	s.network, err = NewPeerNetwork(initialPeer)
@@ -40,7 +47,7 @@ func NewState(initialPeer string) *State {
 }
 
 func (s *State) MineForGold() {
-	mineNewBlock:
+mineNewBlock:
 	for {
 		s.txnLock.Lock()
 		b := &Block{}
@@ -56,8 +63,13 @@ func (s *State) MineForGold() {
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 		for {
 			select {
-			case <-s.restart:
-				continue mineNewBlock
+			case sig := <-s.signals:
+				switch sig {
+				case sigNewBlock:
+					continue mineNewBlock
+				case sigQuit:
+					return
+				}
 			default:
 				b.Nonce = r.Uint32()
 				if b.Verify() {
@@ -69,4 +81,5 @@ func (s *State) MineForGold() {
 }
 
 func (s *State) Close() {
+	s.signals <- sigQuit
 }

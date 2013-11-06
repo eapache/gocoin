@@ -24,5 +24,5 @@ func (b *Block) Hash() []byte {
 func (b *Block) Verify() bool {
 	hash := b.Hash()
 	// first 17 bits zero? timed for 5-20 seconds per solve on modern CPU
-	return hash[0] == 0 && hash[1] == 0 && hash[2] & 0x80 == 0
+	return hash[0] == 0 && hash[1] == 0 && hash[2]&0x80 == 0
 }
