@@ -3,14 +3,12 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/gob"
-	"math/rand"
-	"time"
 )
 
 type Block struct {
 	PrevHash []byte
 	Nonce    uint32
-	Txns     []Transaction
+	Txns     []*Transaction
 }
 
 func (b *Block) Hash() []byte {
@@ -25,13 +23,6 @@ func (b *Block) Hash() []byte {
 
 func (b *Block) Verify() bool {
 	hash := b.Hash()
-	return hash[0] == 0 && hash[1] == 0
-}
-
-func (b *Block) Solve() {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	b.Nonce = r.Uint32()
-	for !b.Verify() {
-		b.Nonce = r.Uint32()
-	}
+	// first 17 bits zero? timed for 5-20 seconds per solve on modern CPU
+	return hash[0] == 0 && hash[1] == 0 && hash[2] & 0x80 == 0
 }

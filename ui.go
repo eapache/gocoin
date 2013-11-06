@@ -6,7 +6,8 @@ import (
 	"os"
 )
 
-func doUI() {
+func mainLoop(s *State) {
+	fmt.Println("Welcome to GoCoin")
 	printHelp()
 
 	scanner := bufio.NewScanner(os.Stdin)
@@ -15,6 +16,19 @@ func doUI() {
 	for scanner.Scan() {
 		switch scanner.Text() {
 		case "": // do nothing, ignore
+		case "genk":
+			_, err := s.wallet.GenKey()
+			if err != nil {
+				fmt.Println("Error: ", err)
+			} else {
+				fmt.Println("Success")
+			}
+		case "show":
+			fmt.Println("Wallet:")
+			for key, _ := range s.wallet.Keys {
+				fmt.Println(key)
+				fmt.Println()
+			}
 		case "help":
 			printHelp()
 		case "quit":
@@ -28,5 +42,10 @@ func doUI() {
 }
 
 func printHelp() {
-	// TODO
+	fmt.Println("Possible commands are:")
+	fmt.Println("  help (this help)")
+	fmt.Println("  quit (exits gocoin)")
+	fmt.Println("  show (display wallet)")
+	fmt.Println("  genk (generates a new key and adds it to the wallet)")
+	fmt.Println("")
 }
