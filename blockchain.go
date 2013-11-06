@@ -16,22 +16,8 @@ func (chain *BlockChain) Last() *Block {
 	return chain.Blocks[len(chain.Blocks)-1]
 }
 
-func (chain *BlockChain) TryAppend(blk *Block) bool {
-	if !blk.Verify() {
-		return false
-	}
-
-	if chain.Blocks == nil && blk.PrevHash == nil {
-		chain.Blocks = append(chain.Blocks, blk)
-		return true
-	}
-
-	if bytes.Equal(chain.Last().Hash(), blk.PrevHash) {
-		chain.Blocks = append(chain.Blocks, blk)
-		return true
-	}
-
-	return false
+func (chain *BlockChain) Append(blk *Block) {
+	chain.Blocks = append(chain.Blocks, blk)
 }
 
 func (chain *BlockChain) Verify() bool {

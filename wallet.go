@@ -23,3 +23,8 @@ func (w *Wallet) GenKey() (*rsa.PublicKey, error) {
 
 	return &priv.PublicKey, nil
 }
+
+// generates a new payment of 10 coins into this wallet from mining
+func (w *Wallet) NewPaymentTxn() *Transaction {
+	return nil // TODO
+}

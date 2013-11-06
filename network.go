@@ -27,7 +27,6 @@ const (
 
 type NetworkMessage struct {
 	Type  MsgType
-	ID    uint // for request/response matching
 	Value interface{}
 
 	addr string // filled on the receiving side
@@ -45,7 +44,6 @@ type PeerNetwork struct {
 	events   chan *NetworkMessage
 	closing  bool
 	peerLock sync.RWMutex
-	nextID   uint
 	state    *State
 }
 
@@ -131,7 +129,7 @@ func (network *PeerNetwork) AcceptNewConns() {
 		conn, err := network.server.Accept()
 
 		if err != nil {
-			network.events <- &NetworkMessage{Error, 0, err, ""}
+			network.events <- &NetworkMessage{Error, err, ""}
 			return
 		}
 
@@ -147,7 +145,7 @@ func (network *PeerNetwork) AcceptNewConns() {
 
 		switch msg.Type {
 		case PeerListRequest:
-			response := NetworkMessage{Type: PeerListResponse, ID: msg.ID, Value: network.PeerAddrList()}
+			response := NetworkMessage{Type: PeerListResponse, Value: network.PeerAddrList()}
 			encoder.Encode(&response) // XXX anything to handle error?
 			conn.Close()
 		case PeerBroadcast:
@@ -179,7 +177,7 @@ func (network *PeerNetwork) ReceiveFromConn(addr string) {
 	for {
 		err = peer.decoder.Decode(&msg)
 		if err != nil {
-			network.events <- &NetworkMessage{Error, 0, err, addr}
+			network.events <- &NetworkMessage{Error, err, addr}
 			return
 		}
 
@@ -193,21 +191,17 @@ func (network *PeerNetwork) HandleEvents() {
 	for msg := range network.events {
 		switch msg.Type {
 		case BlockChainRequest:
-			var chain *BlockChain
-			if msg.Value == nil {
-				// request for primary chain
-				chain = network.state.primary
-			} else {
-				// request for chain with particular hash for head block
-				hash := msg.Value.([]byte)
-				chain = network.state.chainFromHash(hash)
-			}
-			message := &NetworkMessage{Type: BlockChainResponse, ID: msg.ID, Value: chain}
+			hash := msg.Value.([]byte)
+			chain := network.state.ChainFromHash(hash)
+			message := &NetworkMessage{Type: BlockChainResponse, Value: chain}
 			peer := network.peers[msg.addr] // XXX lock map?
 			peer.encoder.Encode(&message)   // XXX anything to handle error?
 		case BlockChainResponse:
 			chain := msg.Value.(*BlockChain)
 			network.state.addBlockChain(chain)
+		case BlockBroadcast:
+			block := msg.Value.(*Block)
+			network.state.newBlock(block)
 		case Error:
 			if msg.addr == "" {
 				if network.closing {
@@ -257,15 +251,25 @@ func (network *PeerNetwork) PeerAddrList() []string {
 	return list
 }
 
-func (network *PeerNetwork) RequestBlockChain() {
+func (network *PeerNetwork) RequestBlockChain(hash []byte) {
 	network.peerLock.RLock()
 	defer network.peerLock.RUnlock()
 
 	// pick a random peer
 	for _, peer := range network.peers {
-		message := &NetworkMessage{Type: BlockChainRequest, ID: network.nextID, Value: nil}
-		network.nextID += 1
+		message := &NetworkMessage{Type: BlockChainRequest, Value: hash}
 		peer.encoder.Encode(&message) // XXX anything to handle error?
 		return
+	}
+}
+
+func (network *PeerNetwork) BroadcastBlock(b *Block) {
+	network.peerLock.RLock()
+	defer network.peerLock.RUnlock()
+
+	// pick a random peer
+	message := &NetworkMessage{Type: BlockBroadcast, Value: b}
+	for _, peer := range network.peers {
+		peer.encoder.Encode(&message) // XXX anything to handle error?
 	}
 }

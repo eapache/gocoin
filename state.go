@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rsa"
 	"math/rand"
 	"sync"
@@ -15,17 +16,19 @@ const (
 )
 
 type State struct {
+	sync.RWMutex
+
+	// main state
 	primary    *BlockChain
 	alternates []*BlockChain
-	network    *PeerNetwork
 	wallet     *Wallet
+	activeKeys map[rsa.PublicKey]*Transaction
 
-	txnLock        sync.Mutex
+	network *PeerNetwork
+
 	pendingTxns    []*Transaction
 	txnsInProgress []*Transaction
-	activeKeys     map[rsa.PublicKey]*Transaction
-
-	signals chan signal
+	signals        chan signal
 }
 
 func NewState(initialPeer string) *State {
@@ -33,7 +36,7 @@ func NewState(initialPeer string) *State {
 	s.primary = &BlockChain{}
 	s.activeKeys = make(map[rsa.PublicKey]*Transaction)
 	s.wallet = NewWallet()
-	s.signals = make(chan signal)
+	s.signals = make(chan signal, 1)
 
 	var err error
 	s.network, err = NewPeerNetwork(initialPeer)
@@ -42,34 +45,82 @@ func NewState(initialPeer string) *State {
 	}
 	s.network.state = s // woohoo, circular references
 
-	s.network.RequestBlockChain()
+	s.network.RequestBlockChain(nil) // nil hash for the primary chain
 
 	go s.MineForGold()
 
 	return s
 }
 
+func (s *State) ChainFromHash(hash []byte) *BlockChain {
+	s.RLock()
+	defer s.RUnlock()
+	return s.chainFromHash(hash)
+}
+
 func (s *State) chainFromHash(hash []byte) *BlockChain {
-	return nil // TODO
+	// unlocked version
+
+	if hash == nil {
+		return s.primary
+	}
+
+	if bytes.Equal(hash, s.primary.Last().Hash()) {
+		return s.primary
+	}
+
+	for _, chain := range s.alternates {
+		if bytes.Equal(hash, chain.Last().Hash()) {
+			return chain
+		}
+	}
+
+	return nil
 }
 
 func (s *State) addBlockChain(chain *BlockChain) {
-	// TODO
+	s.Lock()
+	defer s.Unlock()
+
+	if len(s.primary.Blocks) < len(chain.Blocks) {
+		s.alternates = append(s.alternates, s.primary)
+		s.primary = chain
+		s.signals <- sigNewBlock
+	}
+}
+
+func (s *State) newBlock(b *Block) {
+	if !b.Verify() {
+		return
+	}
+
+	s.Lock()
+	defer s.Unlock()
+
+	chain := s.chainFromHash(b.PrevHash)
+
+	if chain == nil {
+		s.network.RequestBlockChain(b.Hash())
+	} else {
+		chain.Append(b)
+		s.signals <- sigNewBlock
+	}
 }
 
 func (s *State) MineForGold() {
 mineNewBlock:
 	for {
-		s.txnLock.Lock()
+		s.Lock()
 		b := &Block{}
 		s.txnsInProgress = s.pendingTxns
 		s.pendingTxns = nil
 		b.Txns = s.txnsInProgress
-		s.txnLock.Unlock()
+		b.Txns = append(b.Txns, s.wallet.NewPaymentTxn())
 
 		if s.primary.Last() != nil {
 			b.PrevHash = s.primary.Last().Hash()
 		}
+		s.Unlock()
 
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 		for {
@@ -84,7 +135,17 @@ mineNewBlock:
 			default:
 				b.Nonce = r.Uint32()
 				if b.Verify() {
-					return // TODO
+					success := false
+					s.Lock()
+					if bytes.Equal(s.primary.Last().Hash(), b.PrevHash) {
+						s.primary.Append(b)
+						success = true
+					}
+					s.Unlock()
+					if success {
+						s.network.BroadcastBlock(b)
+					}
+					continue mineNewBlock
 				}
 			}
 		}
