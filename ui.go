@@ -7,6 +7,8 @@ import (
 )
 
 func doUI() {
+	printHelp()
+
 	scanner := bufio.NewScanner(os.Stdin)
 
 	fmt.Print("> ")
@@ -14,7 +16,7 @@ func doUI() {
 		switch scanner.Text() {
 		case "": // do nothing, ignore
 		case "help":
-			// TODO print help
+			printHelp()
 		case "quit":
 			return
 		default:
@@ -23,4 +25,8 @@ func doUI() {
 
 		fmt.Print("> ")
 	}
+}
+
+func printHelp() {
+	// TODO
 }
