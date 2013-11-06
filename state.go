@@ -40,10 +40,21 @@ func NewState(initialPeer string) *State {
 	if err != nil {
 		panic(err)
 	}
+	s.network.state = s // woohoo, circular references
+
+	s.network.RequestBlockChain()
 
 	go s.MineForGold()
 
 	return s
+}
+
+func (s *State) chainFromHash(hash []byte) *BlockChain {
+	return nil // TODO
+}
+
+func (s *State) addBlockChain(chain *BlockChain) {
+	// TODO
 }
 
 func (s *State) MineForGold() {

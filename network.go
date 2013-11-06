@@ -45,6 +45,8 @@ type PeerNetwork struct {
 	events   chan *NetworkMessage
 	closing  bool
 	peerLock sync.RWMutex
+	nextID   uint
+	state    *State
 }
 
 func NewPeerNetwork(startPeer string) (network *PeerNetwork, err error) {
@@ -190,6 +192,22 @@ func (network *PeerNetwork) ReceiveFromConn(addr string) {
 func (network *PeerNetwork) HandleEvents() {
 	for msg := range network.events {
 		switch msg.Type {
+		case BlockChainRequest:
+			var chain *BlockChain
+			if msg.Value == nil {
+				// request for primary chain
+				chain = network.state.primary
+			} else {
+				// request for chain with particular hash for head block
+				hash := msg.Value.([]byte)
+				chain = network.state.chainFromHash(hash)
+			}
+			message := &NetworkMessage{Type: BlockChainResponse, ID: msg.ID, Value: chain}
+			peer := network.peers[msg.addr] // XXX lock map?
+			peer.encoder.Encode(&message)   // XXX anything to handle error?
+		case BlockChainResponse:
+			chain := msg.Value.(*BlockChain)
+			network.state.addBlockChain(chain)
 		case Error:
 			if msg.addr == "" {
 				if network.closing {
@@ -237,4 +255,17 @@ func (network *PeerNetwork) PeerAddrList() []string {
 		list = append(list, addr)
 	}
 	return list
+}
+
+func (network *PeerNetwork) RequestBlockChain() {
+	network.peerLock.RLock()
+	defer network.peerLock.RUnlock()
+
+	// pick a random peer
+	for _, peer := range network.peers {
+		message := &NetworkMessage{Type: BlockChainRequest, ID: network.nextID, Value: nil}
+		network.nextID += 1
+		peer.encoder.Encode(&message) // XXX anything to handle error?
+		return
+	}
 }
