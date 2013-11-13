@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-func mainLoop(s *State) {
+func mainLoop() {
 	fmt.Println("Welcome to GoCoin")
 	printHelp()
 
@@ -17,7 +17,7 @@ func mainLoop(s *State) {
 		switch scanner.Text() {
 		case "": // do nothing, ignore
 		case "genk":
-			_, err := s.wallet.GenKey()
+			_, err := state.wallet.GenKey()
 			if err != nil {
 				fmt.Println("Error: ", err)
 			} else {
@@ -25,7 +25,7 @@ func mainLoop(s *State) {
 			}
 		case "show":
 			fmt.Println("Wallet:")
-			for key, _ := range s.wallet.Keys {
+			for key, _ := range state.wallet.Keys {
 				fmt.Println(key)
 				fmt.Println()
 			}

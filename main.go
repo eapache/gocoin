@@ -3,6 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
+	"math/rand"
+	"time"
 )
 
 var network *PeerNetwork
@@ -18,16 +20,41 @@ func main() {
 		panic(err)
 	}
 
-	state = NewState(*initialPeer)
+	state = NewState()
 
 	network.RequestBlockChain(nil) // nil hash for the primary chain
 
-	go state.MineForGold()
+	stopper := make(chan bool)
+	go MineForGold(stopper)
 
 	fmt.Println("Startup complete, listening on ", network.server.Addr())
 
-	mainLoop(state)
+	mainLoop()
 
-	state.Close()
+	stopper <- true
 	network.Close()
+}
+
+func MineForGold(stopper chan bool) {
+mineNewBlock:
+	for {
+		b := state.ConstructBlock()
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+		for {
+			if state.ResetMiner {
+				continue mineNewBlock
+			}
+			select {
+			case <-stopper:
+				return
+			default:
+				b.Nonce = r.Uint32()
+				success, _ := state.NewBlock(b)
+				if success {
+					network.BroadcastBlock(b)
+					continue mineNewBlock
+				}
+			}
+		}
+	}
 }

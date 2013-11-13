@@ -44,7 +44,6 @@ type PeerNetwork struct {
 	events   chan *NetworkMessage
 	closing  bool
 	peerLock sync.RWMutex
-	state    *State
 }
 
 func NewPeerNetwork(startPeer string) (network *PeerNetwork, err error) {
@@ -192,17 +191,17 @@ func (network *PeerNetwork) HandleEvents() {
 		switch msg.Type {
 		case BlockChainRequest:
 			hash := msg.Value.([]byte)
-			chain := network.state.ChainFromHash(hash)
+			chain := state.ChainFromHash(hash)
 			message := &NetworkMessage{Type: BlockChainResponse, Value: chain}
 			peer := network.peers[msg.addr] // XXX lock map?
 			peer.encoder.Encode(&message)   // XXX anything to handle error?
 		case BlockChainResponse:
 			chain := msg.Value.(*BlockChain)
-			network.state.addBlockChain(chain)
+			state.AddBlockChain(chain)
 		case BlockBroadcast:
 			block := msg.Value.(*Block)
-			getChain := state.newBlock(block)
-			if getChain {
+			valid, haveChain := state.NewBlock(block)
+			if valid && !haveChain {
 				network.RequestBlockChain(block.Hash())
 			}
 		case Error:

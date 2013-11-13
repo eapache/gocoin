@@ -2,10 +2,16 @@ package main
 
 import (
 	"bytes"
+	"crypto/rsa"
 )
 
 type BlockChain struct {
 	Blocks []*Block
+	activeKeys map[rsa.PublicKey]*Transaction
+}
+
+func NewBlockChain() *BlockChain {
+	return &BlockChain{nil, make(map[rsa.PublicKey]*Transaction)}
 }
 
 func (chain *BlockChain) Last() *Block {
@@ -16,7 +22,12 @@ func (chain *BlockChain) Last() *Block {
 	return chain.Blocks[len(chain.Blocks)-1]
 }
 
-func (chain *BlockChain) Append(blk *Block) {
+func (chain *BlockChain) Append(blk *Block) bool {
+	for txn := range blk.Txns {
+		for input := range txn.Inputs {
+		}
+	}
+
 	chain.Blocks = append(chain.Blocks, blk)
 }
 
