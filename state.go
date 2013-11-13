@@ -119,7 +119,8 @@ mineNewBlock:
 				if b.Verify() {
 					success := false
 					s.Lock()
-					if bytes.Equal(s.primary.Last().Hash(), b.PrevHash) {
+					prev := s.primary.Last()
+					if prev == nil || bytes.Equal(prev.Hash(), b.PrevHash) {
 						s.primary.Append(b)
 						success = true
 					}
