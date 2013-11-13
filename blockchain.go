@@ -5,13 +5,51 @@ import (
 	"crypto/rsa"
 )
 
+type KeySet map[rsa.PublicKey]*Transaction
+
+func (set KeySet) Copy() KeySet {
+	tmp := make(KeySet, len(set))
+	for k, v := range set {
+		tmp[k] = v
+	}
+	return tmp
+}
+
+func (set KeySet) AddTxn(txn *Transaction) bool {
+	var inTotal, outTotal uint64
+
+	for _, input := range txn.Inputs {
+		prev := set[input.Key]
+		if prev == nil || !bytes.Equal(prev.Hash(), input.PrevHash) {
+			return false
+		}
+		amount, err := prev.OutputAmount(input.Key)
+		if err != nil {
+			return false
+		}
+		inTotal += amount
+		delete(set, input.Key)
+	}
+
+	for _, output := range txn.Outputs {
+		outTotal += output.Amount
+		set[output.Key] = txn
+	}
+
+	if inTotal != outTotal {
+		return false
+	}
+
+	return true
+}
+
 type BlockChain struct {
-	Blocks []*Block
-	activeKeys map[rsa.PublicKey]*Transaction
+	Blocks     []*Block
+	ActiveKeys KeySet
 }
 
 func NewBlockChain() *BlockChain {
-	return &BlockChain{nil, make(map[rsa.PublicKey]*Transaction)}
+	return &BlockChain{nil, make(KeySet)}
 }
 
 func (chain *BlockChain) Last() *Block {
@@ -23,12 +61,22 @@ func (chain *BlockChain) Last() *Block {
 }
 
 func (chain *BlockChain) Append(blk *Block) bool {
-	for txn := range blk.Txns {
-		for input := range txn.Inputs {
+	tmpKeys := chain.ActiveKeys.Copy()
+	for _, txn := range blk.Txns {
+		valid := txn.VerifySignatures()
+		if !valid {
+			return false
+		}
+
+		valid = tmpKeys.AddTxn(txn)
+		if !valid {
+			return false
 		}
 	}
 
 	chain.Blocks = append(chain.Blocks, blk)
+	chain.ActiveKeys = tmpKeys
+	return true
 }
 
 func (chain *BlockChain) Verify() bool {

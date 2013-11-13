@@ -65,3 +65,25 @@ func (txn *Transaction) Sign(w *Wallet) (err error) {
 
 	return nil
 }
+
+func (txn *Transaction) VerifySignatures() bool {
+	hash := txn.Hash()
+
+	for i := range txn.Inputs {
+		err := rsa.VerifyPKCS1v15(&txn.Inputs[i].Key, crypto.SHA256, hash, txn.Inputs[i].Signature)
+		if err != nil {
+			return false
+		}
+	}
+	return true
+}
+
+func (txn *Transaction) OutputAmount(key rsa.PublicKey) (uint64, error) {
+	for i := range txn.Outputs {
+		if key == txn.Outputs[i].Key {
+			return txn.Outputs[i].Amount, nil
+		}
+	}
+
+	return 0, errors.New("could not fetch output amount, key not found")
+}
