@@ -201,7 +201,10 @@ func (network *PeerNetwork) HandleEvents() {
 			network.state.addBlockChain(chain)
 		case BlockBroadcast:
 			block := msg.Value.(*Block)
-			network.state.newBlock(block)
+			getChain := state.newBlock(block)
+			if getChain {
+				network.RequestBlockChain(block.Hash())
+			}
 		case Error:
 			if msg.addr == "" {
 				if network.closing {

@@ -8,13 +8,6 @@ import (
 	"time"
 )
 
-type signal int
-
-const (
-	sigNewBlock signal = iota
-	sigQuit     signal = iota
-)
-
 type State struct {
 	sync.RWMutex
 
@@ -24,11 +17,10 @@ type State struct {
 	wallet     *Wallet
 	activeKeys map[rsa.PublicKey]*Transaction
 
-	network *PeerNetwork
-
 	pendingTxns    []*Transaction
 	txnsInProgress []*Transaction
-	signals        chan signal
+	resetMiner     bool
+	stopper        chan bool
 }
 
 func NewState(initialPeer string) *State {
@@ -36,18 +28,7 @@ func NewState(initialPeer string) *State {
 	s.primary = &BlockChain{}
 	s.activeKeys = make(map[rsa.PublicKey]*Transaction)
 	s.wallet = NewWallet()
-	s.signals = make(chan signal, 1)
-
-	var err error
-	s.network, err = NewPeerNetwork(initialPeer)
-	if err != nil {
-		panic(err)
-	}
-	s.network.state = s // woohoo, circular references
-
-	s.network.RequestBlockChain(nil) // nil hash for the primary chain
-
-	go s.MineForGold()
+	s.stopper = make(chan bool, 1)
 
 	return s
 }
@@ -85,13 +66,14 @@ func (s *State) addBlockChain(chain *BlockChain) {
 	if len(s.primary.Blocks) < len(chain.Blocks) {
 		s.alternates = append(s.alternates, s.primary)
 		s.primary = chain
-		s.signals <- sigNewBlock
+		s.resetMiner = true
 	}
 }
 
-func (s *State) newBlock(b *Block) {
+// returns true if we need to request the whole chain
+func (s *State) newBlock(b *Block) bool {
 	if !b.Verify() {
-		return
+		return false
 	}
 
 	s.Lock()
@@ -100,11 +82,12 @@ func (s *State) newBlock(b *Block) {
 	chain := s.chainFromHash(b.PrevHash)
 
 	if chain == nil {
-		s.network.RequestBlockChain(b.Hash())
-	} else {
-		chain.Append(b)
-		s.signals <- sigNewBlock
+		return true
 	}
+
+	chain.Append(b)
+	s.resetMiner = true
+	return false
 }
 
 func (s *State) MineForGold() {
@@ -120,18 +103,17 @@ mineNewBlock:
 		if s.primary.Last() != nil {
 			b.PrevHash = s.primary.Last().Hash()
 		}
+		s.resetMiner = false
 		s.Unlock()
 
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 		for {
+			if s.resetMiner {
+				continue mineNewBlock
+			}
 			select {
-			case sig := <-s.signals:
-				switch sig {
-				case sigNewBlock:
-					continue mineNewBlock
-				case sigQuit:
-					return
-				}
+			case <-s.stopper:
+				return
 			default:
 				b.Nonce = r.Uint32()
 				if b.Verify() {
@@ -143,7 +125,7 @@ mineNewBlock:
 					}
 					s.Unlock()
 					if success {
-						s.network.BroadcastBlock(b)
+						network.BroadcastBlock(b)
 					}
 					continue mineNewBlock
 				}
@@ -153,5 +135,5 @@ mineNewBlock:
 }
 
 func (s *State) Close() {
-	s.signals <- sigQuit
+	s.stopper <- true
 }
