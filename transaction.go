@@ -78,12 +78,12 @@ func (txn *Transaction) VerifySignatures() bool {
 	return true
 }
 
-func (txn *Transaction) OutputAmount(key rsa.PublicKey) (uint64, error) {
+func (txn *Transaction) OutputAmount(key rsa.PublicKey) (bool, uint64) {
 	for i := range txn.Outputs {
 		if key == txn.Outputs[i].Key {
-			return txn.Outputs[i].Amount, nil
+			return true, txn.Outputs[i].Amount
 		}
 	}
 
-	return 0, errors.New("could not fetch output amount, key not found")
+	return false, 0
 }

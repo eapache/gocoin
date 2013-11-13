@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/rsa"
 	"sync"
 )
 
@@ -29,6 +30,19 @@ func NewState() *State {
 //
 // public, locked functions
 //
+
+func (s *State) GetValue(key rsa.PublicKey) (bool, uint64) {
+	s.Lock()
+	defer s.Unlock()
+
+	txn := s.primary.ActiveKeys[key]
+
+	if txn == nil {
+		return false, 0
+	}
+
+	return txn.OutputAmount(key)
+}
 
 func (s *State) ConstructBlock() *Block {
 	s.Lock()
@@ -86,11 +100,20 @@ func (s *State) NewBlock(b *Block) (bool, bool) {
 		return false, true
 	}
 
+	// TODO update pendingTxns and txnsInProgress
 	s.ResetMiner = true
 	return true, true
 }
 
 func (s *State) UndoBlock(b *Block) {
+	s.Lock()
+	defer s.Unlock()
+
+	lastTxn := b.Txns[len(b.Txns)-1]
+	if lastTxn.Inputs == nil && len(lastTxn.Outputs) == 1 {
+		// miner's transaction, remove the key
+		delete(s.wallet.Keys, lastTxn.Outputs[0].Key)
+	}
 }
 
 //

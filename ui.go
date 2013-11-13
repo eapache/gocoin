@@ -24,11 +24,7 @@ func mainLoop() {
 				fmt.Println("Success")
 			}
 		case "show":
-			fmt.Println("Wallet:")
-			for key, _ := range state.wallet.Keys {
-				fmt.Println(key)
-				fmt.Println()
-			}
+			printWallet()
 		case "help":
 			printHelp()
 		case "quit":
@@ -39,6 +35,17 @@ func mainLoop() {
 
 		fmt.Print("> ")
 	}
+}
+
+func printWallet() {
+	fmt.Printf("\n  Amount | Public Key\n")
+	var total uint64
+	for key, _ := range state.wallet.Keys {
+		_, val := state.GetValue(key)
+		fmt.Printf("%8d | %s...\n", val, key.N.String()[0:40])
+		total += val
+	}
+	fmt.Printf("\nTotal Coins: %d\n\n", total)
 }
 
 func printHelp() {

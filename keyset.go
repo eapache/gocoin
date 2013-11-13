@@ -23,8 +23,8 @@ func (set KeySet) AddTxn(txn *Transaction) bool {
 		if prev == nil || !bytes.Equal(prev.Hash(), input.PrevHash) {
 			return false
 		}
-		amount, err := prev.OutputAmount(input.Key)
-		if err != nil {
+		exists, amount := prev.OutputAmount(input.Key)
+		if !exists {
 			return false
 		}
 		inTotal += amount
@@ -47,4 +47,3 @@ func (set KeySet) AddTxn(txn *Transaction) bool {
 
 	return true
 }
-
