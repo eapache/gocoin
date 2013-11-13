@@ -36,10 +36,11 @@ func main() {
 }
 
 func MineForGold(stopper chan bool) {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
 mineNewBlock:
 	for {
 		b := state.ConstructBlock()
-		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 		for {
 			if state.ResetMiner {
 				continue mineNewBlock
