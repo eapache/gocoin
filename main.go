@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"math/rand"
+	"runtime"
 	"time"
 )
 
@@ -13,6 +14,10 @@ var state *State
 func main() {
 	initialPeer := flag.String("connect", "", "Address of peer, leave blank for new network")
 	flag.Parse()
+
+	// XXX so mining doesn't block everything, since the goroutine scheduler only kicks in on
+	// system calls which mining doesn't make in the CPU-intensive path
+	runtime.GOMAXPROCS(2)
 
 	var err error
 	network, err = NewPeerNetwork(*initialPeer)
@@ -43,6 +48,7 @@ mineNewBlock:
 		b := state.ConstructBlock()
 		for {
 			if state.ResetMiner {
+				state.UndoBlock(b)
 				continue mineNewBlock
 			}
 			select {

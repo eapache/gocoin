@@ -90,6 +90,9 @@ func (s *State) NewBlock(b *Block) (bool, bool) {
 	return true, true
 }
 
+func (s *State) UndoBlock(b *Block) {
+}
+
 //
 // private, unlocked functions *must* be called while already holding the lock
 //
