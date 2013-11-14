@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/gob"
 	"errors"
+	"io"
 	"net"
 	"sync"
 )
@@ -36,6 +37,10 @@ type PeerConn struct {
 	base    net.Conn
 	encoder *gob.Encoder
 	decoder *gob.Decoder
+}
+
+func NewPeerConn(conn net.Conn) *PeerConn {
+	return &PeerConn{conn, gob.NewEncoder(conn), gob.NewDecoder(conn)}
 }
 
 func (peer *PeerConn) Send(msg *NetworkMessage) error {
@@ -81,8 +86,7 @@ type PeerNetwork struct {
 	peerLock sync.RWMutex
 }
 
-func NewPeerNetwork(startPeer string) (network *PeerNetwork, err error) {
-	var msg NetworkMessage
+func NewPeerNetwork(address, startPeer string) (network *PeerNetwork, err error) {
 	var peerAddrs []string
 
 	if startPeer != "" {
@@ -92,15 +96,14 @@ func NewPeerNetwork(startPeer string) (network *PeerNetwork, err error) {
 		}
 		defer conn.Close()
 
-		encoder := gob.NewEncoder(conn)
-		decoder := gob.NewDecoder(conn)
+		peer := NewPeerConn(conn)
 
-		err = encoder.Encode(&NetworkMessage{Type: PeerListRequest})
+		err = peer.Send(&NetworkMessage{Type: PeerListRequest})
 		if err != nil {
 			return nil, err
 		}
 
-		err = decoder.Decode(&msg)
+		msg, err := peer.Receive()
 		if err != nil {
 			return nil, err
 		}
@@ -121,39 +124,32 @@ func NewPeerNetwork(startPeer string) (network *PeerNetwork, err error) {
 		peers:  make(map[string]*PeerConn, len(peerAddrs)),
 		events: make(chan *NetworkMessage),
 	}
-	network.server, err = net.Listen("tcp", ":0")
+	network.server, err = net.Listen("tcp", address)
 	if err != nil {
 		return nil, err
 	}
 
+	go network.AcceptNewConns()
+	go network.HandleEvents()
+
+	msg := NetworkMessage{Type: PeerBroadcast, Value: network.server.Addr().String()}
 	for _, addr := range peerAddrs {
 		conn, err := net.Dial("tcp", addr)
 		if err != nil {
 			continue
 		}
 
-		encoder := gob.NewEncoder(conn)
+		peer := NewPeerConn(conn)
 
-		err = encoder.Encode(PeerBroadcast)
+		err = peer.Send(&msg)
 		if err != nil {
 			conn.Close()
 			continue
 		}
 
-		err = encoder.Encode(network.server.Addr().String())
-		if err != nil {
-			conn.Close()
-			continue
-		}
-
-		decoder := gob.NewDecoder(conn)
-
-		network.peers[addr] = &PeerConn{base: conn, encoder: encoder, decoder: decoder}
+		network.peers[addr] = peer
 		go network.ReceiveFromConn(addr)
 	}
-
-	go network.AcceptNewConns()
-	go network.HandleEvents()
 
 	return network, nil
 }
@@ -167,7 +163,7 @@ func (network *PeerNetwork) AcceptNewConns() {
 			return
 		}
 
-		peer := &PeerConn{conn, gob.NewEncoder(conn), gob.NewDecoder(conn)}
+		peer := NewPeerConn(conn)
 
 		msg, err := peer.Receive()
 		if err != nil {
@@ -177,7 +173,7 @@ func (network *PeerNetwork) AcceptNewConns() {
 
 		switch msg.Type {
 		case PeerListRequest:
-			response := NetworkMessage{Type: PeerListResponse, Value: network.PeerAddrList()}
+			response := NetworkMessage{Type: PeerListResponse, Value: append(network.PeerAddrList(), network.server.Addr().String())}
 			peer.Send(&response)
 			conn.Close()
 		case PeerBroadcast:
@@ -229,11 +225,11 @@ func (network *PeerNetwork) HandleEvents() {
 			peer := network.Peer(msg.addr)
 			peer.Send(message)
 		case BlockChainResponse:
-			chain := msg.Value.(*BlockChain)
-			state.AddBlockChain(chain)
+			chain := msg.Value.(BlockChain)
+			state.AddBlockChain(&chain)
 		case BlockBroadcast:
-			block := msg.Value.(*Block)
-			valid, haveChain := state.NewBlock(block)
+			block := msg.Value.(Block)
+			valid, haveChain := state.NewBlock(&block)
 			if valid && !haveChain {
 				network.RequestBlockChain(block.Hash())
 			}
@@ -255,7 +251,7 @@ func (network *PeerNetwork) HandleEvents() {
 					if network.closing {
 						close(network.events)
 						return
-					} else {
+					} else if msg.Value != io.EOF {
 						panic(msg.Value)
 					}
 				}
@@ -309,7 +305,7 @@ func (network *PeerNetwork) BroadcastBlock(b *Block) {
 	network.peerLock.RLock()
 	defer network.peerLock.RUnlock()
 
-	// pick a random peer
+	// send to all peers
 	message := NetworkMessage{Type: BlockBroadcast, Value: b}
 	for _, peer := range network.peers {
 		peer.Send(&message)
