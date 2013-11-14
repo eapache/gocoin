@@ -38,6 +38,41 @@ type PeerConn struct {
 	decoder *gob.Decoder
 }
 
+func (peer *PeerConn) Send(msg *NetworkMessage) error {
+	err := peer.encoder.Encode(msg)
+
+	if err == nil {
+		return nil
+	}
+
+	switch err.(type) {
+	case net.Error:
+		// caller may choose to ignore this
+		return err
+	default:
+		// probably a gob error which we want to know about
+		panic(err)
+	}
+}
+
+func (peer *PeerConn) Receive() (*NetworkMessage, error) {
+	msg := new(NetworkMessage)
+	err := peer.decoder.Decode(msg)
+
+	if err == nil {
+		return msg, nil
+	}
+
+	switch err.(type) {
+	case net.Error:
+		// caller may choose to ignore this
+		return nil, err
+	default:
+		// probably a gob error which we want to know about
+		panic(err)
+	}
+}
+
 type PeerNetwork struct {
 	peers    map[string]*PeerConn
 	server   net.Listener
@@ -132,11 +167,9 @@ func (network *PeerNetwork) AcceptNewConns() {
 			return
 		}
 
-		encoder := gob.NewEncoder(conn)
-		decoder := gob.NewDecoder(conn)
+		peer := &PeerConn{conn, gob.NewEncoder(conn), gob.NewDecoder(conn)}
 
-		var msg NetworkMessage
-		err = decoder.Decode(&msg)
+		msg, err := peer.Receive()
 		if err != nil {
 			conn.Close()
 			continue
@@ -145,14 +178,14 @@ func (network *PeerNetwork) AcceptNewConns() {
 		switch msg.Type {
 		case PeerListRequest:
 			response := NetworkMessage{Type: PeerListResponse, Value: network.PeerAddrList()}
-			encoder.Encode(&response) // XXX anything to handle error?
+			peer.Send(&response)
 			conn.Close()
 		case PeerBroadcast:
 			switch addr := msg.Value.(type) {
 			case string:
 				network.peerLock.Lock()
 				if !network.closing && network.peers[addr] == nil {
-					network.peers[addr] = &PeerConn{base: conn, encoder: encoder, decoder: decoder}
+					network.peers[addr] = peer
 					go network.ReceiveFromConn(addr)
 				} else {
 					conn.Close()
@@ -193,8 +226,8 @@ func (network *PeerNetwork) HandleEvents() {
 			hash := msg.Value.([]byte)
 			chain := state.ChainFromHash(hash)
 			message := &NetworkMessage{Type: BlockChainResponse, Value: chain}
-			peer := network.peers[msg.addr] // XXX lock map?
-			peer.encoder.Encode(&message)   // XXX anything to handle error?
+			peer := network.Peer(msg.addr)
+			peer.Send(message)
 		case BlockChainResponse:
 			chain := msg.Value.(*BlockChain)
 			state.AddBlockChain(chain)
@@ -253,14 +286,21 @@ func (network *PeerNetwork) PeerAddrList() []string {
 	return list
 }
 
+func (network *PeerNetwork) Peer(addr string) *PeerConn {
+	network.peerLock.RLock()
+	defer network.peerLock.RUnlock()
+
+	return network.peers[addr]
+}
+
 func (network *PeerNetwork) RequestBlockChain(hash []byte) {
 	network.peerLock.RLock()
 	defer network.peerLock.RUnlock()
 
 	// pick a random peer
+	message := NetworkMessage{Type: BlockChainRequest, Value: hash}
 	for _, peer := range network.peers {
-		message := &NetworkMessage{Type: BlockChainRequest, Value: hash}
-		peer.encoder.Encode(&message) // XXX anything to handle error?
+		peer.Send(&message)
 		return
 	}
 }
@@ -270,8 +310,8 @@ func (network *PeerNetwork) BroadcastBlock(b *Block) {
 	defer network.peerLock.RUnlock()
 
 	// pick a random peer
-	message := &NetworkMessage{Type: BlockBroadcast, Value: b}
+	message := NetworkMessage{Type: BlockBroadcast, Value: b}
 	for _, peer := range network.peers {
-		peer.encoder.Encode(&message) // XXX anything to handle error?
+		peer.Send(&message)
 	}
 }
