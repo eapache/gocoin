@@ -23,14 +23,3 @@ func (w *Wallet) GenKey() (*rsa.PublicKey, error) {
 
 	return &priv.PublicKey, nil
 }
-
-// generates a new payment of 10 coins into this wallet from mining
-func (w *Wallet) NewPaymentTxn() *Transaction {
-	key, err := w.GenKey()
-	if err != nil {
-		panic(err)
-	}
-	txn := &Transaction{}
-	txn.Outputs = append(txn.Outputs, TxnOutput{*key, 10})
-	return txn
-}

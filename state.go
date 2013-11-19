@@ -31,17 +31,23 @@ func NewState() *State {
 // public, locked functions
 //
 
-func (s *State) GetValue(key rsa.PublicKey) (bool, uint64) {
-	s.Lock()
-	defer s.Unlock()
+func (s *State) GetWallet() map[rsa.PublicKey]uint64 {
+	s.RLock()
+	defer s.RUnlock()
 
-	txn := s.primary.ActiveKeys[key]
+	ret := make(map[rsa.PublicKey]uint64)
 
-	if txn == nil {
-		return false, 0
+	for key, _ := range s.wallet.Keys {
+		txn := s.primary.ActiveKeys[key]
+
+		if txn == nil {
+			ret[key] = 0
+		} else {
+			_, ret[key] = txn.OutputAmount(key)
+		}
 	}
 
-	return txn.OutputAmount(key)
+	return ret
 }
 
 func (s *State) ConstructBlock() *Block {
@@ -52,7 +58,7 @@ func (s *State) ConstructBlock() *Block {
 	s.txnsInProgress = s.pendingTxns
 	s.pendingTxns = nil
 	b.Txns = s.txnsInProgress
-	b.Txns = append(b.Txns, s.wallet.NewPaymentTxn())
+	b.Txns = append(b.Txns, NewMinersTransation(s.wallet))
 
 	if s.primary.Last() != nil {
 		b.PrevHash = s.primary.Last().Hash()

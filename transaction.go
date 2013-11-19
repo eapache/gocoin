@@ -25,6 +25,17 @@ type Transaction struct {
 	Outputs []TxnOutput
 }
 
+// generates a new payment of 10 coins into the given wallet from mining
+func NewMinersTransation(w *Wallet) *Transaction {
+	key, err := w.GenKey()
+	if err != nil {
+		panic(err)
+	}
+	txn := &Transaction{}
+	txn.Outputs = append(txn.Outputs, TxnOutput{*key, 10})
+	return txn
+}
+
 func (txn *Transaction) Hash() []byte {
 	hasher := sha256.New()
 	encoder := gob.NewEncoder(hasher)
