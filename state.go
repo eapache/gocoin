@@ -13,9 +13,9 @@ type State struct {
 	primary    *BlockChain
 	alternates []*BlockChain
 	wallet     *Wallet
+	keys       KeySet
 
 	pendingTxns    []*Transaction
-	txnsInProgress []*Transaction
 	ResetMiner     bool
 }
 
@@ -55,10 +55,8 @@ func (s *State) ConstructBlock() *Block {
 	defer s.Unlock()
 
 	b := &Block{}
-	s.txnsInProgress = s.pendingTxns
-	s.pendingTxns = nil
-	b.Txns = s.txnsInProgress
 	b.Txns = append(b.Txns, NewMinersTransation(s.wallet))
+	b.Txns = append(b.Txns, s.pendingTxns...)
 
 	if s.primary.Last() != nil {
 		b.PrevHash = s.primary.Last().Hash()
@@ -81,7 +79,7 @@ func (s *State) AddBlockChain(chain *BlockChain) {
 	if len(s.primary.Blocks) < len(chain.Blocks) {
 		s.alternates = append(s.alternates, s.primary)
 		s.primary = chain
-		s.ResetMiner = true
+		s.reset()
 	}
 }
 
@@ -106,8 +104,8 @@ func (s *State) NewBlock(b *Block) (bool, bool) {
 		return false, true
 	}
 
-	// TODO update pendingTxns and txnsInProgress
-	s.ResetMiner = true
+	s.reset()
+
 	return true, true
 }
 
@@ -125,6 +123,21 @@ func (s *State) UndoBlock(b *Block) {
 //
 // private, unlocked functions *must* be called while already holding the lock
 //
+
+func (s *State) reset() {
+	s.ResetMiner = true
+	s.keys = s.primary.ActiveKeys.Copy()
+
+	var tmp []*Transaction
+
+	for _, txn := range s.pendingTxns {
+		if s.keys.AddTxn(txn) {
+			tmp = append(tmp, txn)
+		}
+	}
+
+	s.pendingTxns = tmp
+}
 
 func (s *State) chainFromHash(hash []byte) *BlockChain {
 	if hash == nil {
