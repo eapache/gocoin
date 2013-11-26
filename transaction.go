@@ -25,15 +25,17 @@ type Transaction struct {
 	Outputs []TxnOutput
 }
 
-// generates a new payment of 10 coins into the given wallet from mining
-func NewMinersTransation(w *Wallet) *Transaction {
-	key, err := w.GenKey()
+// generates a new payment of 10 coins from mining, returning the transaction
+// and the private key that will be payed if the mining is successful
+func NewMinersTransation() (*Transaction, *rsa.PrivateKey) {
+	priv, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
 		panic(err)
 	}
+
 	txn := &Transaction{}
-	txn.Outputs = append(txn.Outputs, TxnOutput{*key, 10})
-	return txn
+	txn.Outputs = append(txn.Outputs, TxnOutput{priv.PublicKey, 10})
+	return txn, priv
 }
 
 func (txn *Transaction) Hash() []byte {

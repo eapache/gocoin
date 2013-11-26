@@ -16,6 +16,11 @@ func (set KeySet) Copy() KeySet {
 }
 
 func (set KeySet) AddTxn(txn *Transaction) bool {
+	valid := txn.VerifySignatures()
+	if !valid {
+		return false
+	}
+
 	var inTotal, outTotal uint64
 
 	for _, input := range txn.Inputs {

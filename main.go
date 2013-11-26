@@ -66,10 +66,9 @@ func MineForGold(stopper chan bool) {
 
 mineNewBlock:
 	for {
-		b := state.ConstructBlock()
+		b, key := state.ConstructBlock()
 		for {
 			if state.ResetMiner {
-				state.UndoBlock(b)
 				continue mineNewBlock
 			}
 			select {
@@ -79,6 +78,7 @@ mineNewBlock:
 				b.Nonce = r.Uint32()
 				success, _ := state.NewBlock(b)
 				if success {
+					state.AddToWallet(key)
 					network.BroadcastBlock(b)
 					continue mineNewBlock
 				}

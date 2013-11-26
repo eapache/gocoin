@@ -24,13 +24,7 @@ func (chain *BlockChain) Last() *Block {
 func (chain *BlockChain) Append(blk *Block) bool {
 	tmpKeys := chain.ActiveKeys.Copy()
 	for _, txn := range blk.Txns {
-		valid := txn.VerifySignatures()
-		if !valid {
-			return false
-		}
-
-		valid = tmpKeys.AddTxn(txn)
-		if !valid {
+		if !tmpKeys.AddTxn(txn) {
 			return false
 		}
 	}

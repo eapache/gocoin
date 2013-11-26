@@ -15,8 +15,8 @@ type State struct {
 	wallet     *Wallet
 	keys       KeySet
 
-	pendingTxns    []*Transaction
-	ResetMiner     bool
+	pendingTxns []*Transaction
+	ResetMiner  bool
 }
 
 func NewState() *State {
@@ -30,6 +30,26 @@ func NewState() *State {
 //
 // public, locked functions
 //
+
+func (s *State) AddTxn(txn *Transaction) bool {
+	s.Lock()
+	defer s.Unlock()
+
+	success := s.keys.AddTxn(txn)
+
+	if success {
+		s.pendingTxns = append(s.pendingTxns, txn)
+	}
+
+	return success
+}
+
+func (s *State) AddToWallet(key *rsa.PrivateKey) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.wallet.AddKey(key)
+}
 
 func (s *State) GetWallet() map[rsa.PublicKey]uint64 {
 	s.RLock()
@@ -50,12 +70,14 @@ func (s *State) GetWallet() map[rsa.PublicKey]uint64 {
 	return ret
 }
 
-func (s *State) ConstructBlock() *Block {
+func (s *State) ConstructBlock() (*Block, *rsa.PrivateKey) {
 	s.Lock()
 	defer s.Unlock()
 
+	txn, key := NewMinersTransation()
+
 	b := &Block{}
-	b.Txns = append(b.Txns, NewMinersTransation(s.wallet))
+	b.Txns = append(b.Txns, txn)
 	b.Txns = append(b.Txns, s.pendingTxns...)
 
 	if s.primary.Last() != nil {
@@ -63,7 +85,7 @@ func (s *State) ConstructBlock() *Block {
 	}
 	s.ResetMiner = false
 
-	return b
+	return b, key
 }
 
 func (s *State) ChainFromHash(hash []byte) *BlockChain {
@@ -107,17 +129,6 @@ func (s *State) NewBlock(b *Block) (bool, bool) {
 	s.reset()
 
 	return true, true
-}
-
-func (s *State) UndoBlock(b *Block) {
-	s.Lock()
-	defer s.Unlock()
-
-	lastTxn := b.Txns[len(b.Txns)-1]
-	if lastTxn.Inputs == nil && len(lastTxn.Outputs) == 1 {
-		// miner's transaction, remove the key
-		delete(s.wallet.Keys, lastTxn.Outputs[0].Key)
-	}
 }
 
 //
