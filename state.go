@@ -16,6 +16,7 @@ type State struct {
 	keys       KeySet
 
 	pendingTxns []*Transaction
+	beingMined  int
 	ResetMiner  bool
 }
 
@@ -36,7 +37,14 @@ func (s *State) GenTxnInput(key rsa.PublicKey) TxnInput {
 	s.RLock()
 	defer s.RUnlock()
 
-	input := TxnInput{key, s.keys[key].Hash(), nil}
+	prev := s.keys[key]
+	if prev == nil {
+		prev = s.primary.Keys[key]
+	}
+	if prev == nil {
+		panic("invalid key")
+	}
+	input := TxnInput{key, prev.Hash(), nil}
 
 	return input
 }
@@ -101,6 +109,7 @@ func (s *State) ConstructBlock() (*Block, *rsa.PrivateKey) {
 		b.PrevHash = s.primary.Last().Hash()
 	}
 	s.ResetMiner = false
+	s.beingMined = len(s.pendingTxns) + 1
 
 	return b, key
 }
