@@ -75,7 +75,7 @@ func (s *State) GetWallet() map[rsa.PublicKey]uint64 {
 	ret := make(map[rsa.PublicKey]uint64)
 
 	for key, _ := range s.wallet {
-		txn := s.keys[key]
+		txn := s.primary.Keys[key]
 
 		if txn == nil {
 			ret[key] = 0
@@ -154,7 +154,7 @@ func (s *State) NewBlock(b *Block) (bool, bool) {
 
 func (s *State) reset() {
 	s.ResetMiner = true
-	s.keys = s.primary.ActiveKeys.Copy()
+	s.keys = s.primary.Keys.Copy()
 
 	var tmp []*Transaction
 

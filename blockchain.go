@@ -5,8 +5,8 @@ import (
 )
 
 type BlockChain struct {
-	Blocks     []*Block
-	ActiveKeys KeySet
+	Blocks []*Block
+	Keys   KeySet
 }
 
 func NewBlockChain() *BlockChain {
@@ -22,7 +22,7 @@ func (chain *BlockChain) Last() *Block {
 }
 
 func (chain *BlockChain) Append(blk *Block) bool {
-	tmpKeys := chain.ActiveKeys.Copy()
+	tmpKeys := chain.Keys.Copy()
 	for _, txn := range blk.Txns {
 		if !tmpKeys.AddTxn(txn) {
 			return false
@@ -30,7 +30,7 @@ func (chain *BlockChain) Append(blk *Block) bool {
 	}
 
 	chain.Blocks = append(chain.Blocks, blk)
-	chain.ActiveKeys = tmpKeys
+	chain.Keys = tmpKeys
 	return true
 }
 
