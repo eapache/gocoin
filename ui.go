@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"crypto/rsa"
 	"fmt"
 	"os"
 )
@@ -16,15 +17,17 @@ func mainLoop() {
 	for scanner.Scan() {
 		switch scanner.Text() {
 		case "": // do nothing, ignore
-		case "genk":
-			_, err := state.wallet.GenKey()
-			if err != nil {
-				fmt.Println("Error: ", err)
+		case "cons":
+			txn, key := consWallet()
+			success := state.AddTxn(txn)
+			if success {
+				state.AddToWallet(key)
+				fmt.Println("Wallet consolidated.")
 			} else {
-				fmt.Println("Success")
+				fmt.Println("Failed.")
 			}
 		case "state":
-			printBlockChain()
+			printState()
 		case "wallet":
 			printWallet()
 		case "help":
@@ -39,6 +42,25 @@ func mainLoop() {
 	}
 }
 
+func consWallet() (*Transaction, *rsa.PrivateKey) {
+	var total uint64
+	txn := new(Transaction)
+
+	for key, amount := range state.GetWallet() {
+		if amount > 0 {
+			total += amount
+			txn.Inputs = append(txn.Inputs, state.GenTxnInput(key))
+		}
+	}
+
+	key := genKey()
+	txn.Outputs = append(txn.Outputs, TxnOutput{key.PublicKey, total})
+
+	state.Sign(txn)
+
+	return txn, key
+}
+
 func printWallet() {
 	fmt.Printf("\n  Amount | Public Key\n")
 	var total uint64
@@ -49,23 +71,40 @@ func printWallet() {
 	fmt.Printf("\nTotal Coins: %d\n\n", total)
 }
 
-func printBlockChain() {
+func printState() {
 	state.RLock()
 	defer state.RUnlock()
 
-	chain := state.primary
+	fmt.Printf("\nPrimary Chain (%d Blocks)", len(state.primary.Blocks))
+	printBlockChain(state.primary)
 
-	fmt.Printf("\nPrimary Chain (%d Blocks)", len(chain.Blocks))
-	for _, block := range chain.Blocks {
-		fmt.Printf("\n\tBlock (%d Txns) - Nonce: %10d; Hash: 0x%x...",
-			len(block.Txns), block.Nonce, block.Hash()[0:13])
-		for _, txn := range block.Txns {
-			fmt.Printf("\n\t\tTxn (%d Inputs, %d Outputs)",
-				len(txn.Inputs), len(txn.Outputs))
-		}
+	fmt.Printf("\n%d Pending Transactions\n", len(state.pendingTxns))
+	for _, txn := range state.pendingTxns {
+		printTxn(txn)
 	}
 	fmt.Println()
-	fmt.Println()
+}
+
+func printBlockChain(chain *BlockChain) {
+	if len(chain.Blocks) > 0 {
+		fmt.Println()
+	}
+	for _, block := range chain.Blocks {
+		fmt.Printf("\tBlock (%d Txns) - Nonce: %10d; Hash: 0x%x...",
+			len(block.Txns), block.Nonce, block.Hash()[0:13])
+		if len(block.Txns) > 0 {
+			fmt.Println()
+		}
+		for _, txn := range block.Txns {
+			fmt.Printf("\t\t")
+			printTxn(txn)
+		}
+	}
+}
+
+func printTxn(txn *Transaction) {
+	fmt.Printf("Txn (%d Inputs, %d Outputs)\n",
+		len(txn.Inputs), len(txn.Outputs))
 }
 
 func printHelp() {
@@ -73,9 +112,9 @@ func printHelp() {
 	fmt.Println("  help (displays this help)")
 	fmt.Println("  quit (exits gocoin)")
 	fmt.Println()
-	fmt.Println("  state  (display primary blockchain state)")
+	fmt.Println("  state  (display blockchain and transaction state)")
 	fmt.Println("  wallet (display wallet)")
 	fmt.Println()
-	fmt.Println("  genk (generates a new key and adds it to the wallet)")
+	fmt.Println("  cons (consolidate wallet into single key)")
 	fmt.Println("")
 }

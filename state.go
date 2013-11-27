@@ -12,7 +12,7 @@ type State struct {
 	// main state
 	primary    *BlockChain
 	alternates []*BlockChain
-	wallet     *Wallet
+	wallet     map[rsa.PublicKey]*rsa.PrivateKey
 	keys       KeySet
 
 	pendingTxns []*Transaction
@@ -22,7 +22,8 @@ type State struct {
 func NewState() *State {
 	s := &State{}
 	s.primary = &BlockChain{}
-	s.wallet = NewWallet()
+	s.wallet = make(map[rsa.PublicKey]*rsa.PrivateKey)
+	s.keys = make(KeySet)
 
 	return s
 }
@@ -30,6 +31,22 @@ func NewState() *State {
 //
 // public, locked functions
 //
+
+func (s *State) GenTxnInput(key rsa.PublicKey) TxnInput {
+	s.RLock()
+	defer s.RUnlock()
+
+	input := TxnInput{key, s.keys[key].Hash(), nil}
+
+	return input
+}
+
+func (s *State) Sign(txn *Transaction) error {
+	s.RLock()
+	defer s.RUnlock()
+
+	return txn.Sign(s.wallet)
+}
 
 func (s *State) AddTxn(txn *Transaction) bool {
 	s.Lock()
@@ -48,7 +65,7 @@ func (s *State) AddToWallet(key *rsa.PrivateKey) {
 	s.Lock()
 	defer s.Unlock()
 
-	s.wallet.AddKey(key)
+	s.wallet[key.PublicKey] = key
 }
 
 func (s *State) GetWallet() map[rsa.PublicKey]uint64 {
@@ -57,8 +74,8 @@ func (s *State) GetWallet() map[rsa.PublicKey]uint64 {
 
 	ret := make(map[rsa.PublicKey]uint64)
 
-	for key, _ := range s.wallet.Keys {
-		txn := s.primary.ActiveKeys[key]
+	for key, _ := range s.wallet {
+		txn := s.keys[key]
 
 		if txn == nil {
 			ret[key] = 0
@@ -144,6 +161,10 @@ func (s *State) reset() {
 	for _, txn := range s.pendingTxns {
 		if s.keys.AddTxn(txn) {
 			tmp = append(tmp, txn)
+		} else {
+			for _, input := range txn.Inputs {
+				delete(s.wallet, input.Key)
+			}
 		}
 	}
 

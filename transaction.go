@@ -28,11 +28,7 @@ type Transaction struct {
 // generates a new payment of 10 coins from mining, returning the transaction
 // and the private key that will be payed if the mining is successful
 func NewMinersTransation() (*Transaction, *rsa.PrivateKey) {
-	priv, err := rsa.GenerateKey(rand.Reader, 1024)
-	if err != nil {
-		panic(err)
-	}
-
+	priv := genKey()
 	txn := &Transaction{}
 	txn.Outputs = append(txn.Outputs, TxnOutput{priv.PublicKey, 10})
 	return txn, priv
@@ -62,11 +58,11 @@ func (txn *Transaction) Hash() []byte {
 	return hasher.Sum(nil)
 }
 
-func (txn *Transaction) Sign(w *Wallet) (err error) {
+func (txn *Transaction) Sign(wallet map[rsa.PublicKey]*rsa.PrivateKey) (err error) {
 	hash := txn.Hash()
 
 	for i := range txn.Inputs {
-		privKey := w.Keys[txn.Inputs[i].Key]
+		privKey := wallet[txn.Inputs[i].Key]
 		if privKey == nil {
 			return errors.New("could not sign transaction, missing private key")
 		}
