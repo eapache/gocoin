@@ -18,6 +18,7 @@ func main() {
 	// these are used as interface values so must be registered first
 	gob.Register(Block{})
 	gob.Register(BlockChain{})
+	gob.Register(Transaction{})
 
 	// XXX so it appears that "gob" assigns type IDs consecutively as they are used, which
 	// means that if two processes encode different types first, the same type will get different IDs,

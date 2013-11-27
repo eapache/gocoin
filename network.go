@@ -311,3 +311,14 @@ func (network *PeerNetwork) BroadcastBlock(b *Block) {
 		peer.Send(&message)
 	}
 }
+
+func (network *PeerNetwork) BroadcastTxn(txn *Transaction) {
+	network.peerLock.RLock()
+	defer network.peerLock.RUnlock()
+
+	// send to all peers
+	message := NetworkMessage{Type: TransactionBroadcast, Value: txn}
+	for _, peer := range network.peers {
+		peer.Send(&message)
+	}
+}

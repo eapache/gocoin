@@ -83,11 +83,9 @@ func (s *State) GetWallet() map[rsa.PublicKey]uint64 {
 	ret := make(map[rsa.PublicKey]uint64)
 
 	for key, _ := range s.wallet {
-		txn := s.primary.Keys[key]
+		txn := s.keys[key]
 
-		if txn == nil {
-			ret[key] = 0
-		} else {
+		if txn != nil {
 			_, ret[key] = txn.OutputAmount(key)
 		}
 	}
@@ -173,6 +171,9 @@ func (s *State) reset() {
 		} else {
 			for _, input := range txn.Inputs {
 				delete(s.wallet, input.Key)
+			}
+			for _, output := range txn.Outputs {
+				delete(s.wallet, output.Key)
 			}
 		}
 	}

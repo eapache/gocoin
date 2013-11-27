@@ -22,6 +22,7 @@ func mainLoop() {
 			success := state.AddTxn(txn)
 			if success {
 				state.AddToWallet(key)
+				network.BroadcastTxn(txn)
 				fmt.Println("Wallet consolidated.")
 			} else {
 				fmt.Println("Failed.")
