@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/rsa"
 	"encoding/gob"
 	"errors"
 	"io"
@@ -79,11 +80,12 @@ func (peer *PeerConn) Receive() (*NetworkMessage, error) {
 }
 
 type PeerNetwork struct {
-	peers    map[string]*PeerConn
-	server   net.Listener
-	events   chan *NetworkMessage
-	closing  bool
-	peerLock sync.RWMutex
+	peers      map[string]*PeerConn
+	server     net.Listener
+	events     chan *NetworkMessage
+	payExpects map[string]chan *rsa.PublicKey
+	closing    bool
+	lock       sync.RWMutex
 }
 
 func NewPeerNetwork(address, startPeer string) (network *PeerNetwork, err error) {
@@ -121,8 +123,9 @@ func NewPeerNetwork(address, startPeer string) (network *PeerNetwork, err error)
 	}
 
 	network = &PeerNetwork{
-		peers:  make(map[string]*PeerConn, len(peerAddrs)),
-		events: make(chan *NetworkMessage),
+		peers:      make(map[string]*PeerConn, len(peerAddrs)),
+		payExpects: make(map[string]chan *rsa.PublicKey),
+		events:     make(chan *NetworkMessage),
 	}
 	network.server, err = net.Listen("tcp", address)
 	if err != nil {
@@ -179,14 +182,14 @@ func (network *PeerNetwork) AcceptNewConns() {
 		case PeerBroadcast:
 			switch addr := msg.Value.(type) {
 			case string:
-				network.peerLock.Lock()
+				network.lock.Lock()
 				if !network.closing && network.peers[addr] == nil {
 					network.peers[addr] = peer
 					go network.ReceiveFromConn(addr)
 				} else {
 					conn.Close()
 				}
-				network.peerLock.Unlock()
+				network.lock.Unlock()
 			default:
 				conn.Close()
 			}
@@ -221,9 +224,9 @@ func (network *PeerNetwork) HandleEvents() {
 		case BlockChainRequest:
 			hash := msg.Value.([]byte)
 			chain := state.ChainFromHash(hash)
-			message := &NetworkMessage{Type: BlockChainResponse, Value: chain}
+			message := NetworkMessage{Type: BlockChainResponse, Value: chain}
 			peer := network.Peer(msg.addr)
-			peer.Send(message)
+			peer.Send(&message)
 		case BlockChainResponse:
 			chain := msg.Value.(BlockChain)
 			state.AddBlockChain(&chain)
@@ -233,6 +236,21 @@ func (network *PeerNetwork) HandleEvents() {
 			if valid && !haveChain {
 				network.RequestBlockChain(block.Hash())
 			}
+		case TransactionRequest:
+			key := state.PayTo(msg.addr)
+			message := NetworkMessage{Type: TransactionResponse, Value: key}
+			peer := network.Peer(msg.addr)
+			peer.Send(&message)
+		case TransactionResponse:
+			network.lock.Lock()
+			expect := network.payExpects[msg.addr]
+			if expect != nil {
+				key := msg.Value.(rsa.PublicKey)
+				expect <- &key
+				close(expect)
+				delete(network.payExpects, msg.addr)
+			}
+			network.lock.Unlock()
 		case Error:
 			if msg.addr == "" {
 				if network.closing {
@@ -244,9 +262,9 @@ func (network *PeerNetwork) HandleEvents() {
 					panic(msg.Value)
 				}
 			} else {
-				network.peerLock.Lock()
+				network.lock.Lock()
 				delete(network.peers, msg.addr)
-				network.peerLock.Unlock()
+				network.lock.Unlock()
 				if len(network.peers) == 0 {
 					if network.closing {
 						close(network.events)
@@ -256,13 +274,15 @@ func (network *PeerNetwork) HandleEvents() {
 					}
 				}
 			}
+		default:
+			panic(msg.Type)
 		}
 	}
 }
 
 func (network *PeerNetwork) Close() {
-	network.peerLock.Lock()
-	defer network.peerLock.Unlock()
+	network.lock.Lock()
+	defer network.lock.Unlock()
 
 	network.closing = true
 	network.server.Close()
@@ -272,8 +292,8 @@ func (network *PeerNetwork) Close() {
 }
 
 func (network *PeerNetwork) PeerAddrList() []string {
-	network.peerLock.RLock()
-	defer network.peerLock.RUnlock()
+	network.lock.RLock()
+	defer network.lock.RUnlock()
 
 	list := make([]string, 0, len(network.peers))
 	for addr, _ := range network.peers {
@@ -283,15 +303,52 @@ func (network *PeerNetwork) PeerAddrList() []string {
 }
 
 func (network *PeerNetwork) Peer(addr string) *PeerConn {
-	network.peerLock.RLock()
-	defer network.peerLock.RUnlock()
+	network.lock.RLock()
+	defer network.lock.RUnlock()
 
 	return network.peers[addr]
 }
 
+func (network *PeerNetwork) CancelPayExpectation(addr string) {
+	network.lock.Lock()
+	defer network.lock.Unlock()
+
+	close(network.payExpects[addr])
+	delete(network.payExpects, addr)
+}
+
+func (network *PeerNetwork) genPayExpectation(addr string) chan *rsa.PublicKey {
+	network.lock.Lock()
+	defer network.lock.Unlock()
+
+	c := make(chan *rsa.PublicKey)
+	network.payExpects[addr] = c
+	return c
+}
+
+func (network *PeerNetwork) RequestPayableAddress(addr string) (chan *rsa.PublicKey, error) {
+	peer := network.Peer(addr)
+
+	if peer == nil {
+		return nil, errors.New("Peer no longer connected")
+	}
+
+	expect := network.genPayExpectation(addr)
+
+	message := NetworkMessage{Type: TransactionRequest}
+	err := peer.Send(&message)
+
+	if err != nil {
+		network.CancelPayExpectation(addr)
+		return nil, err
+	}
+
+	return expect, nil
+}
+
 func (network *PeerNetwork) RequestBlockChain(hash []byte) {
-	network.peerLock.RLock()
-	defer network.peerLock.RUnlock()
+	network.lock.RLock()
+	defer network.lock.RUnlock()
 
 	// pick a random peer
 	message := NetworkMessage{Type: BlockChainRequest, Value: hash}
@@ -302,8 +359,8 @@ func (network *PeerNetwork) RequestBlockChain(hash []byte) {
 }
 
 func (network *PeerNetwork) BroadcastBlock(b *Block) {
-	network.peerLock.RLock()
-	defer network.peerLock.RUnlock()
+	network.lock.RLock()
+	defer network.lock.RUnlock()
 
 	// send to all peers
 	message := NetworkMessage{Type: BlockBroadcast, Value: b}
@@ -313,8 +370,8 @@ func (network *PeerNetwork) BroadcastBlock(b *Block) {
 }
 
 func (network *PeerNetwork) BroadcastTxn(txn *Transaction) {
-	network.peerLock.RLock()
-	defer network.peerLock.RUnlock()
+	network.lock.RLock()
+	defer network.lock.RUnlock()
 
 	// send to all peers
 	message := NetworkMessage{Type: TransactionBroadcast, Value: txn}

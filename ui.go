@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 )
 
 func inputReader(ret chan string) {
@@ -37,8 +38,8 @@ func mainLoop() {
 			} else {
 				fmt.Println("Failed.")
 			}
-		case "txn":
-			doTxn(input)
+		case "pay":
+			doPay(input)
 		case "state":
 			printState()
 		case "wallet":
@@ -120,34 +121,54 @@ func printTxn(txn *Transaction) {
 		len(txn.Inputs), len(txn.Outputs))
 }
 
-func doTxn(input chan string) {
+func doPay(input chan string) {
+	peers := network.PeerAddrList()
+	if len(peers) < 1 {
+		fmt.Println("No connected peers to pay.")
+		return
+	}
+
 	interrupt := make(chan os.Signal)
 	signal.Notify(interrupt, os.Interrupt)
 	defer signal.Stop(interrupt)
 	defer close(interrupt)
 	defer fmt.Println()
 
-	fmt.Println("(P)ay or (R)eceive?")
-	var dir string
-	for len(dir) == 0 {
+	fmt.Println("Select your payee:")
+	for i, peer := range peers {
+		fmt.Printf(" %2d -- %s\n", i+1, peer)
+	}
+
+	peer := ""
+	for len(peer) == 0 {
 		fmt.Print(">> ")
 		select {
 		case text := <-input:
-			if text == "P" || text == "R" {
-				dir = text
-			} else {
+			i, err := strconv.Atoi(text)
+			if err != nil || i < 1 || i > len(peers) {
 				fmt.Println("Invalid input")
+			} else {
+				peer = peers[i-1]
 			}
 		case <-interrupt:
 			return
 		}
 	}
-	switch dir {
-	case "P":
-		// TODO
-	case "R":
-		// TODO
+
+	expect, err := network.RequestPayableAddress(peer)
+	if err != nil {
+		fmt.Print(err)
+		return
 	}
+
+	var key *rsa.PublicKey
+	select {
+	case key = <-expect:
+	case <-interrupt:
+		network.CancelPayExpectation(peer)
+	}
+
+	fmt.Println(key)
 }
 
 func printHelp() {
@@ -159,6 +180,6 @@ func printHelp() {
 	fmt.Println("  wallet (display wallet)")
 	fmt.Println()
 	fmt.Println("  cons (consolidate wallet into single key)")
-	fmt.Println("  txn (perform a transaction)")
+	fmt.Println("  pay (perform a transaction to pay another client)")
 	fmt.Println("")
 }

@@ -19,6 +19,7 @@ func main() {
 	gob.Register(Block{})
 	gob.Register(BlockChain{})
 	gob.Register(Transaction{})
+	gob.Register(rsa.PublicKey{})
 
 	// XXX so it appears that "gob" assigns type IDs consecutively as they are used, which
 	// means that if two processes encode different types first, the same type will get different IDs,
@@ -26,12 +27,12 @@ func main() {
 	// a problem for us, since we have to verify hashes across processes, so encode all of our types right
 	// away in a specific order so that all processes assign them the same type IDs
 	encoder := gob.NewEncoder(ioutil.Discard)
-	encoder.Encode(rsa.PublicKey{})
+	encoder.Encode(Block{})
+	encoder.Encode(BlockChain{})
 	encoder.Encode(TxnInput{})
 	encoder.Encode(TxnOutput{})
 	encoder.Encode(Transaction{})
-	encoder.Encode(Block{})
-	encoder.Encode(BlockChain{})
+	encoder.Encode(rsa.PublicKey{})
 
 	initialPeer := flag.String("connect", "", "Address of peer to connect to, leave blank for new network")
 	address := flag.String("listen", ":0", "Listening address of peer, default is random localhost port")
