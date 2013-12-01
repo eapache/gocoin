@@ -237,10 +237,11 @@ func (network *PeerNetwork) HandleEvents() {
 				network.RequestBlockChain(block.Hash())
 			}
 		case TransactionRequest:
-			key := state.PayTo(msg.addr)
-			message := NetworkMessage{Type: TransactionResponse, Value: key}
+			key := genKey()
+			message := NetworkMessage{Type: TransactionResponse, Value: key.PublicKey}
 			peer := network.Peer(msg.addr)
 			peer.Send(&message)
+			state.AddToWallet(key)
 		case TransactionResponse:
 			network.lock.Lock()
 			expect := network.payExpects[msg.addr]

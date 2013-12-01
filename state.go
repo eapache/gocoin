@@ -18,8 +18,6 @@ type State struct {
 	pendingTxns []*Transaction
 	beingMined  int
 	ResetMiner  bool
-
-	pendingPayments map[string]*rsa.PrivateKey
 }
 
 func NewState() *State {
@@ -27,7 +25,6 @@ func NewState() *State {
 	s.primary = &BlockChain{}
 	s.wallet = make(map[rsa.PublicKey]*rsa.PrivateKey)
 	s.keys = make(KeySet)
-	s.pendingPayments = make(map[string]*rsa.PrivateKey)
 
 	return s
 }
@@ -35,20 +32,6 @@ func NewState() *State {
 //
 // public, locked functions
 //
-
-func (s *State) PayTo(payer string) *rsa.PublicKey {
-	s.Lock()
-	defer s.Unlock()
-
-	key := s.pendingPayments[payer]
-
-	if key == nil {
-		key = genKey()
-		s.pendingPayments[payer] = key
-	}
-
-	return &key.PublicKey
-}
 
 func (s *State) GenTxnInput(key rsa.PublicKey) TxnInput {
 	s.RLock()
