@@ -155,6 +155,27 @@ func doPay(input chan string) {
 		}
 	}
 
+	var total uint64
+	for _, val := range state.GetWallet() {
+		total += val
+	}
+	var amount uint64
+	fmt.Println("Pay how much? (You have", total, "in your wallet)")
+	for amount == 0 {
+		fmt.Print(">> ")
+		select {
+		case text := <-input:
+			i, err := strconv.ParseInt(text, 10, 64)
+			if err != nil || i < 1 || uint64(i) > total {
+				fmt.Println("Invalid input")
+			} else {
+				amount = uint64(i)
+			}
+		case <-interrupt:
+			return
+		}
+	}
+
 	expect, err := network.RequestPayableAddress(peer)
 	if err != nil {
 		fmt.Print(err)
@@ -168,7 +189,43 @@ func doPay(input chan string) {
 		network.CancelPayExpectation(peer)
 	}
 
-	fmt.Println(key)
+	txn := new(Transaction)
+
+	total = 0
+	for key, val := range state.GetWallet() {
+		if val > 0 {
+			total += val
+			txn.Inputs = append(txn.Inputs, state.GenTxnInput(key))
+		}
+		if total >= amount {
+			break
+		}
+	}
+
+	txn.Outputs = append(txn.Outputs, TxnOutput{*key, amount})
+	var change *rsa.PrivateKey
+	if total > amount {
+		// calculate change
+		change = genKey()
+		txn.Outputs = append(txn.Outputs, TxnOutput{change.PublicKey, total - amount})
+	}
+
+	err = state.Sign(txn)
+	if err != nil {
+		fmt.Print(err)
+		return
+	}
+
+	success := state.AddTxn(txn)
+	if success {
+		if change != nil {
+			state.AddToWallet(change)
+		}
+		network.BroadcastTxn(txn)
+		fmt.Println("Payment sent.")
+	} else {
+		fmt.Println("Failed, please try again.")
+	}
 }
 
 func printHelp() {

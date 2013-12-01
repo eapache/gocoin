@@ -251,6 +251,9 @@ func (network *PeerNetwork) HandleEvents() {
 				delete(network.payExpects, msg.addr)
 			}
 			network.lock.Unlock()
+		case TransactionBroadcast:
+			txn := msg.Value.(Transaction)
+			state.AddTxn(&txn)
 		case Error:
 			if msg.addr == "" {
 				if network.closing {

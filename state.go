@@ -185,13 +185,6 @@ func (s *State) reset() {
 	for _, txn := range s.pendingTxns {
 		if s.keys.AddTxn(txn) {
 			tmp = append(tmp, txn)
-		} else {
-			for _, input := range txn.Inputs {
-				delete(s.wallet, input.Key)
-			}
-			for _, output := range txn.Outputs {
-				delete(s.wallet, output.Key)
-			}
 		}
 	}
 
