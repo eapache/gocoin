@@ -89,7 +89,7 @@ func (txn *Transaction) VerifySignatures() bool {
 
 func (txn *Transaction) OutputAmount(key rsa.PublicKey) (bool, uint64) {
 	for i := range txn.Outputs {
-		if key == txn.Outputs[i].Key {
+		if keysEql(&key, &txn.Outputs[i].Key) {
 			return true, txn.Outputs[i].Amount
 		}
 	}

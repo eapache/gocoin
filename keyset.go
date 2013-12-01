@@ -2,10 +2,10 @@ package main
 
 import (
 	"bytes"
-	"crypto/rsa"
+	"log"
 )
 
-type KeySet map[rsa.PublicKey]*Transaction
+type KeySet map[string]*Transaction
 
 func (set KeySet) Copy() KeySet {
 	tmp := make(KeySet, len(set))
@@ -18,27 +18,30 @@ func (set KeySet) Copy() KeySet {
 func (set KeySet) AddTxn(txn *Transaction) bool {
 	valid := txn.VerifySignatures()
 	if !valid {
+		log.Println("Failed to verify txn signatures")
 		return false
 	}
 
 	var inTotal, outTotal uint64
 
 	for _, input := range txn.Inputs {
-		prev := set[input.Key]
+		prev := set[input.Key.N.String()]
 		if prev == nil || !bytes.Equal(prev.Hash(), input.PrevHash) {
+			log.Println("Transaction missing input")
 			return false
 		}
 		exists, amount := prev.OutputAmount(input.Key)
 		if !exists {
+			log.Println("Keyset corrupt!")
 			return false
 		}
 		inTotal += amount
-		delete(set, input.Key)
+		delete(set, input.Key.N.String())
 	}
 
 	for _, output := range txn.Outputs {
 		outTotal += output.Amount
-		set[output.Key] = txn
+		set[output.Key.N.String()] = txn
 	}
 
 	if txn.Inputs == nil && len(txn.Outputs) == 1 {
@@ -47,6 +50,7 @@ func (set KeySet) AddTxn(txn *Transaction) bool {
 	}
 
 	if inTotal != outTotal {
+		log.Println("Txn corrupt!")
 		return false
 	}
 

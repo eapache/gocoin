@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/rsa"
+	"log"
 	"sync"
 )
 
@@ -37,9 +38,9 @@ func (s *State) GenTxnInput(key rsa.PublicKey) TxnInput {
 	s.RLock()
 	defer s.RUnlock()
 
-	prev := s.keys[key]
+	prev := s.keys[key.N.String()]
 	if prev == nil {
-		prev = s.primary.Keys[key]
+		prev = s.primary.Keys[key.N.String()]
 	}
 	if prev == nil {
 		panic("invalid key")
@@ -83,7 +84,7 @@ func (s *State) GetWallet() map[rsa.PublicKey]uint64 {
 	ret := make(map[rsa.PublicKey]uint64)
 
 	for key, _ := range s.wallet {
-		txn := s.keys[key]
+		txn := s.keys[key.N.String()]
 
 		if txn != nil {
 			_, ret[key] = txn.OutputAmount(key)
@@ -131,7 +132,7 @@ func (s *State) AddBlockChain(chain *BlockChain) {
 
 // first return is if the block was accepted, second
 // is if we already have the relevant chain
-func (s *State) NewBlock(b *Block) (bool, bool) {
+func (s *State) AddBlock(b *Block) (bool, bool) {
 	if !b.Verify() {
 		return false, false
 	}
@@ -142,11 +143,13 @@ func (s *State) NewBlock(b *Block) (bool, bool) {
 	chain := s.chainFromHash(b.PrevHash)
 
 	if chain == nil {
+		log.Println("Received block for unknown chain")
 		return true, false
 	}
 
 	success := chain.Append(b)
 	if !success {
+		log.Println("Failed to append to chain")
 		return false, true
 	}
 
@@ -167,7 +170,10 @@ func (s *State) reset() {
 
 	for _, txn := range s.pendingTxns {
 		if s.keys.AddTxn(txn) {
+			log.Println("Carrying txn")
 			tmp = append(tmp, txn)
+		} else {
+			log.Println("Discarding txn")
 		}
 	}
 
@@ -184,7 +190,7 @@ func (s *State) chainFromHash(hash []byte) *BlockChain {
 	}
 
 	for _, chain := range s.alternates {
-		if bytes.Equal(hash, chain.Last().Hash()) {
+		if chain.Last() != nil && bytes.Equal(hash, chain.Last().Hash()) {
 			return chain
 		}
 	}

@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math/rand"
 	"runtime"
 	"time"
@@ -78,8 +79,9 @@ mineNewBlock:
 				return
 			default:
 				b.Nonce = r.Uint32()
-				success, _ := state.NewBlock(b)
+				success, _ := state.AddBlock(b)
 				if success {
+					log.Println("Successfully mined block")
 					state.AddToWallet(key)
 					network.BroadcastBlock(b)
 					continue mineNewBlock

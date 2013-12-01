@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"io"
+	"log"
 	"net"
 	"sync"
 )
@@ -231,8 +232,9 @@ func (network *PeerNetwork) HandleEvents() {
 			chain := msg.Value.(BlockChain)
 			state.AddBlockChain(&chain)
 		case BlockBroadcast:
+			log.Println("Received block from", msg.addr)
 			block := msg.Value.(Block)
-			valid, haveChain := state.NewBlock(&block)
+			valid, haveChain := state.AddBlock(&block)
 			if valid && !haveChain {
 				network.RequestBlockChain(block.Hash())
 			}
