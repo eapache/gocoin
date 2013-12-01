@@ -5,17 +5,27 @@ import (
 	"crypto/rsa"
 	"fmt"
 	"os"
+	"os/signal"
 )
+
+func inputReader(ret chan string) {
+	scanner := bufio.NewScanner(os.Stdin)
+	for scanner.Scan() {
+		ret <- scanner.Text()
+	}
+}
 
 func mainLoop() {
 	fmt.Println("Welcome to GoCoin")
 	printHelp()
 
-	scanner := bufio.NewScanner(os.Stdin)
+	input := make(chan string)
+
+	go inputReader(input)
 
 	fmt.Print("> ")
-	for scanner.Scan() {
-		switch scanner.Text() {
+	for text := range input {
+		switch text {
 		case "": // do nothing, ignore
 		case "cons":
 			txn, key := consWallet()
@@ -27,6 +37,8 @@ func mainLoop() {
 			} else {
 				fmt.Println("Failed.")
 			}
+		case "txn":
+			doTxn(input)
 		case "state":
 			printState()
 		case "wallet":
@@ -108,6 +120,36 @@ func printTxn(txn *Transaction) {
 		len(txn.Inputs), len(txn.Outputs))
 }
 
+func doTxn(input chan string) {
+	interrupt := make(chan os.Signal)
+	signal.Notify(interrupt, os.Interrupt)
+	defer signal.Stop(interrupt)
+	defer close(interrupt)
+	defer fmt.Println()
+
+	fmt.Println("(P)ay or (R)eceive?")
+	var dir string
+	for len(dir) == 0 {
+		fmt.Print(">> ")
+		select {
+		case text := <-input:
+			if text == "P" || text == "R" {
+				dir = text
+			} else {
+				fmt.Println("Invalid input")
+			}
+		case <-interrupt:
+			return
+		}
+	}
+	switch dir {
+	case "P":
+		// TODO
+	case "R":
+		// TODO
+	}
+}
+
 func printHelp() {
 	fmt.Println("Possible commands are:")
 	fmt.Println("  help (displays this help)")
@@ -117,5 +159,6 @@ func printHelp() {
 	fmt.Println("  wallet (display wallet)")
 	fmt.Println()
 	fmt.Println("  cons (consolidate wallet into single key)")
+	fmt.Println("  txn (perform a transaction)")
 	fmt.Println("")
 }
