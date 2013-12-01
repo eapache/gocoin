@@ -105,7 +105,7 @@ func printBlockChain(chain *BlockChain) {
 	}
 	for _, block := range chain.Blocks {
 		fmt.Printf("\tBlock (%d Txns) - Nonce: %10d; Hash: 0x%x...",
-			len(block.Txns), block.Nonce, block.Hash()[0:13])
+			len(block.Txns), block.Nonce, block.Hash()[0:12])
 		if len(block.Txns) > 0 {
 			fmt.Println()
 		}
