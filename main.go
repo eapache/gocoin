@@ -8,12 +8,14 @@ import (
 	"io/ioutil"
 	"log"
 	"math/rand"
+	"os"
 	"runtime"
 	"time"
 )
 
 var network *PeerNetwork
 var state *State
+var logger *log.Logger
 
 func main() {
 	// these are used as interface values so must be registered first
@@ -37,11 +39,18 @@ func main() {
 
 	initialPeer := flag.String("connect", "", "Address of peer to connect to, leave blank for new network")
 	address := flag.String("listen", ":0", "Listening address of peer, default is random localhost port")
+	verbose := flag.Bool("verbose", false, "Print logs to the terminal")
 	flag.Parse()
 
 	// XXX so mining doesn't block everything, since the goroutine scheduler only kicks in on
 	// system calls which mining doesn't make in the CPU-intensive path
 	runtime.GOMAXPROCS(2)
+
+	if *verbose {
+		logger = log.New(os.Stdout, "", log.Ltime|log.Lshortfile)
+	} else {
+		logger = log.New(ioutil.Discard, "", 0)
+	}
 
 	var err error
 	network, err = NewPeerNetwork(*address, *initialPeer)
@@ -81,7 +90,7 @@ mineNewBlock:
 				b.Nonce = r.Uint32()
 				success, _ := state.AddBlock(b)
 				if success {
-					log.Println("Successfully mined block")
+					logger.Println("Successfully mined block")
 					state.AddToWallet(key)
 					network.BroadcastBlock(b)
 					continue mineNewBlock

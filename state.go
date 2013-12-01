@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"crypto/rsa"
-	"log"
 	"sync"
 )
 
@@ -143,13 +142,13 @@ func (s *State) AddBlock(b *Block) (bool, bool) {
 	chain := s.chainFromHash(b.PrevHash)
 
 	if chain == nil {
-		log.Println("Received block for unknown chain")
+		logger.Println("Received block for unknown chain")
 		return true, false
 	}
 
 	success := chain.Append(b)
 	if !success {
-		log.Println("Failed to append to chain")
+		logger.Println("Failed to append to chain")
 		return false, true
 	}
 
@@ -170,10 +169,10 @@ func (s *State) reset() {
 
 	for _, txn := range s.pendingTxns {
 		if s.keys.AddTxn(txn) {
-			log.Println("Carrying txn")
+			logger.Println("Carrying txn")
 			tmp = append(tmp, txn)
 		} else {
-			log.Println("Discarding txn")
+			logger.Println("Discarding txn")
 		}
 	}
 
