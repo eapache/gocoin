@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"crypto/rsa"
+	"flag"
 	"fmt"
 	"os"
 	"os/signal"
@@ -229,6 +230,11 @@ func doPay(input chan string) {
 }
 
 func printHelp() {
+
+	fmt.Println()
+	flag.Usage()
+
+	fmt.Println()
 	fmt.Println("Possible commands are:")
 	fmt.Println("  help (displays this help)")
 	fmt.Println("  quit (exits gocoin)")
@@ -238,5 +244,5 @@ func printHelp() {
 	fmt.Println()
 	fmt.Println("  cons (consolidate wallet into single key)")
 	fmt.Println("  pay (perform a transaction to pay another client)")
-	fmt.Println("")
+	fmt.Println()
 }
