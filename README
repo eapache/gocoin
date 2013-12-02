@@ -1,0 +1,70 @@
+Introduction
+============
+
+Gocoin implements a toy version of the bitcoin protocol for demonstration
+purposes. It is written in Golang (http://golang.org/) so should be easily
+compilable on all major platforms (Windows, Mac, Linux).
+
+As with any toy security system, there are numerous practical attacks that make
+this system insecure; the real bitcoin software and protocol are substantially
+more complicated for this reason (far too complicated to implement for this kind
+of project). However, gocoin does use "real" RSA signing as implemented by
+Golang's standard crypto library.
+
+Unlike bitcoin, which has an algorithm for adjusting mining speed and reward,
+gocoin hard-codes values which should require about 10-15 seconds to mine a
+block on a modern CPU. Each block mined rewards the miner with exactly 10 coins.
+These values seem to work well for demonstration purposes.
+
+Building a Network
+==================
+
+The program automatically starts listening on a random network port and mining
+new blocks on a fresh blockchain. It takes three optional flags:
+
+  --listen=ADDR  Choose a specific address to listen on; if not specified the
+                 default is a random ephemeral port on localhost.
+  --connect=ADDR Connect to the peer at the given address. The network is P2P,
+                 so you only have to specify one peer and you will automatically
+                 end up connected to the entire network of peers. In this case
+                 the client will not start a new blockchain but will download
+                 and use the network's existing longest blockchain.
+  --verbose      Print logs to standard output on most events, including new
+                 blocks, transactions, etc.
+
+When the program starts, the very first line it prints contains the listening
+address so you can connect to it from other peers.
+
+Interface
+=========
+
+These are the available commands in the UI:
+  state  - prints out the current internal state, including details of each
+           block and transaction in the primary blockchain (this can get quite
+           long when the network has been running a while)
+  wallet - prints out a summary of your wallet, mapping active keys to value
+  cons   - consolidates the value of your current wallet into single key
+  pay    - allows you to pay coins to another peer out of your wallet
+  help   - displays a summary of the interface and flag help
+  quit   - shuts down the peer (wallet is lost)
+
+Limitations
+===========
+
+Real P2P network logic is quite complicated, so we fake it by simply connecting
+every peer to every other peer; this doesn't scale particularly well, but for
+the toy examples we're running it's just fine. Don't expect to be able to run
+more than about a hundred peers though without hitting OS limits on number of
+open sockets.
+
+Due to the networked nature of the software it must handle a bunch of events in
+parallel. Mutexes are used to avoid race conditions, but the user-driven UI
+cannot hold a lock for the entire time it takes the user to enter payment
+details or the rest of the program would grind to a halt. For this reason,
+making a payment might occasionally fail if the underlying state changes while
+you enter the payment details. This won't corrupt any internal data, so just
+try the payment again.
+
+Application state is not persisted in any way outside of memory. When a peer
+exits, its wallet is gone forever. When the last peer in a network exits, that
+blockchain and all transactions are gone forever.
