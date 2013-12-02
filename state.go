@@ -12,7 +12,7 @@ type State struct {
 	// main state
 	primary    *BlockChain
 	alternates []*BlockChain
-	wallet     map[rsa.PublicKey]*rsa.PrivateKey
+	wallet     map[string]*rsa.PrivateKey
 	keys       KeySet
 
 	pendingTxns []*Transaction
@@ -23,7 +23,7 @@ type State struct {
 func NewState() *State {
 	s := &State{}
 	s.primary = &BlockChain{}
-	s.wallet = make(map[rsa.PublicKey]*rsa.PrivateKey)
+	s.wallet = make(map[string]*rsa.PrivateKey)
 	s.keys = make(KeySet)
 
 	return s
@@ -73,7 +73,7 @@ func (s *State) AddToWallet(key *rsa.PrivateKey) {
 	s.Lock()
 	defer s.Unlock()
 
-	s.wallet[key.PublicKey] = key
+	s.wallet[key.PublicKey.N.String()] = key
 }
 
 func (s *State) GetWallet() map[rsa.PublicKey]uint64 {
@@ -82,11 +82,11 @@ func (s *State) GetWallet() map[rsa.PublicKey]uint64 {
 
 	ret := make(map[rsa.PublicKey]uint64)
 
-	for key, _ := range s.wallet {
+	for _, key := range s.wallet {
 		txn := s.keys[key.N.String()]
 
 		if txn != nil {
-			_, ret[key] = txn.OutputAmount(key)
+			_, ret[key.PublicKey] = txn.OutputAmount(key.PublicKey)
 		}
 	}
 

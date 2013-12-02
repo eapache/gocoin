@@ -49,7 +49,7 @@ func (set KeySet) AddTxn(txn *Transaction) bool {
 	}
 
 	if inTotal != outTotal {
-		logger.Println("Txn corrupt!")
+		logger.Println("Txn corrupt!", inTotal, outTotal)
 		return false
 	}
 

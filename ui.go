@@ -30,15 +30,7 @@ func mainLoop() {
 		switch text {
 		case "": // do nothing, ignore
 		case "cons":
-			txn, key := consWallet()
-			success := state.AddTxn(txn)
-			if success {
-				state.AddToWallet(key)
-				network.BroadcastTxn(txn)
-				fmt.Println("Wallet consolidated.")
-			} else {
-				fmt.Println("Failed.")
-			}
+			consWallet()
 		case "pay":
 			doPay(input)
 		case "state":
@@ -57,7 +49,7 @@ func mainLoop() {
 	}
 }
 
-func consWallet() (*Transaction, *rsa.PrivateKey) {
+func consWallet() {
 	var total uint64
 	txn := new(Transaction)
 
@@ -68,12 +60,24 @@ func consWallet() (*Transaction, *rsa.PrivateKey) {
 		}
 	}
 
+	if len(txn.Inputs) == 0 {
+		fmt.Println("Wallet empty.")
+		return
+	}
+
 	key := genKey()
 	txn.Outputs = append(txn.Outputs, TxnOutput{key.PublicKey, total})
 
 	state.Sign(txn)
 
-	return txn, key
+	success := state.AddTxn(txn)
+	if success {
+		state.AddToWallet(key)
+		network.BroadcastTxn(txn)
+		fmt.Println("Wallet consolidated.")
+	} else {
+		fmt.Println("Failed.")
+	}
 }
 
 func printWallet() {

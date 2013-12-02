@@ -58,11 +58,11 @@ func (txn *Transaction) Hash() []byte {
 	return hasher.Sum(nil)
 }
 
-func (txn *Transaction) Sign(wallet map[rsa.PublicKey]*rsa.PrivateKey) (err error) {
+func (txn *Transaction) Sign(wallet map[string]*rsa.PrivateKey) (err error) {
 	hash := txn.Hash()
 
 	for i := range txn.Inputs {
-		privKey := wallet[txn.Inputs[i].Key]
+		privKey := wallet[txn.Inputs[i].Key.N.String()]
 		if privKey == nil {
 			return errors.New("could not sign transaction, missing private key")
 		}
