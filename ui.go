@@ -19,6 +19,8 @@ func inputReader(ret chan string) {
 
 func mainLoop() {
 	fmt.Println("Welcome to GoCoin")
+	fmt.Println()
+	flag.Usage()
 	printHelp()
 
 	input := make(chan string)
@@ -234,19 +236,16 @@ func doPay(input chan string) {
 }
 
 func printHelp() {
-
-	fmt.Println()
-	flag.Usage()
-
 	fmt.Println()
 	fmt.Println("Possible commands are:")
-	fmt.Println("  help (displays this help)")
-	fmt.Println("  quit (exits gocoin)")
 	fmt.Println()
-	fmt.Println("  state  (display blockchain and transaction state)")
-	fmt.Println("  wallet (display wallet)")
+	fmt.Println("  state  - display blockchain and transaction state")
+	fmt.Println("  wallet - display wallet")
 	fmt.Println()
-	fmt.Println("  cons (consolidate wallet into single key)")
-	fmt.Println("  pay (perform a transaction to pay another client)")
+	fmt.Println("  cons   - consolidate wallet into a single key")
+	fmt.Println("  pay    - perform a payment to another peer")
+	fmt.Println()
+	fmt.Println("  help   - display this help")
+	fmt.Println("  quit   - shut down gocoin (your wallet will be lost)")
 	fmt.Println()
 }
