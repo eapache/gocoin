@@ -78,6 +78,7 @@ func MineForGold(stopper chan bool) {
 
 mineNewBlock:
 	for {
+		logger.Println("Mining new block")
 		b, key := state.ConstructBlock()
 		for {
 			if state.ResetMiner {

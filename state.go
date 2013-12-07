@@ -152,7 +152,9 @@ func (s *State) AddBlock(b *Block) (bool, bool) {
 		return false, true
 	}
 
-	s.reset()
+	if chain == s.primary {
+		s.reset()
+	}
 
 	return true, true
 }
