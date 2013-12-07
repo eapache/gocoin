@@ -9,6 +9,8 @@ import (
 	"errors"
 )
 
+const miningAmount = 10
+
 type TxnInput struct {
 	Key       rsa.PublicKey
 	PrevHash  []byte
@@ -30,7 +32,7 @@ type Transaction struct {
 func NewMinersTransation() (*Transaction, *rsa.PrivateKey) {
 	priv := genKey()
 	txn := &Transaction{}
-	txn.Outputs = append(txn.Outputs, TxnOutput{priv.PublicKey, 10})
+	txn.Outputs = append(txn.Outputs, TxnOutput{priv.PublicKey, miningAmount})
 	return txn, priv
 }
 
@@ -95,4 +97,16 @@ func (txn *Transaction) OutputAmount(key rsa.PublicKey) (bool, uint64) {
 	}
 
 	return false, 0
+}
+
+func (txn *Transaction) Total() uint64 {
+	var total uint64
+	for i := range txn.Outputs {
+		total += txn.Outputs[i].Amount
+	}
+	return total
+}
+
+func (txn *Transaction) IsMiner() bool {
+	return txn.Inputs == nil && len(txn.Outputs) == 1 && txn.Outputs[0].Amount == miningAmount
 }

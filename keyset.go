@@ -43,12 +43,7 @@ func (set KeySet) AddTxn(txn *Transaction) bool {
 		set[output.Key.N.String()] = txn
 	}
 
-	if txn.Inputs == nil && len(txn.Outputs) == 1 {
-		// a miner's bonus txn
-		inTotal = 10
-	}
-
-	if inTotal != outTotal {
+	if inTotal != outTotal && !txn.IsMiner() {
 		logger.Println("Txn corrupt!", inTotal, outTotal)
 		return false
 	}

@@ -124,8 +124,26 @@ func printBlockChain(chain *BlockChain) {
 }
 
 func printTxn(txn *Transaction) {
-	fmt.Printf("Txn (%d Inputs, %d Outputs)\n",
-		len(txn.Inputs), len(txn.Outputs))
+	if txn.IsMiner() {
+		fmt.Printf("Txn mined %d coins for %s\n", miningAmount,
+			txn.Outputs[0].Key.N.String()[:8])
+		return
+	}
+
+	switch len(txn.Outputs) {
+	case 0:
+		fmt.Printf("Txn from %d keys payed %d coins to nobody?\n",
+			len(txn.Inputs), txn.Total())
+	case 1:
+		fmt.Printf("Txn from %d keys payed %d coins to %s\n",
+			len(txn.Inputs), txn.Total(), txn.Outputs[0].Key.N.String()[:8])
+	default:
+		fmt.Printf("Txn from %d keys payed ", len(txn.Inputs))
+		for i := range txn.Outputs[:len(txn.Outputs)-2] {
+			fmt.Printf("%d to %s, ", txn.Outputs[i].Amount, txn.Outputs[i].Key.N.String()[:8])
+		}
+		fmt.Printf("%d to %s\n", txn.Outputs[len(txn.Outputs)-1].Amount, txn.Outputs[len(txn.Outputs)-1].Key.N.String()[:8])
+	}
 }
 
 func doPay(input chan string) {
