@@ -60,7 +60,7 @@ func main() {
 
 	state = NewState()
 
-	network.RequestBlockChain(nil) // nil hash for the primary chain
+	network.RequestBlockChain("", nil) // get the primary chain from a random peer
 
 	stopper := make(chan bool)
 	go MineForGold(stopper)

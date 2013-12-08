@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 )
 
 type MsgType int32
@@ -225,9 +226,11 @@ func (network *PeerNetwork) HandleEvents() {
 		case BlockChainRequest:
 			hash := msg.Value.([]byte)
 			chain := state.ChainFromHash(hash)
-			message := NetworkMessage{Type: BlockChainResponse, Value: chain}
-			peer := network.Peer(msg.addr)
-			peer.Send(&message)
+			if chain != nil {
+				message := NetworkMessage{Type: BlockChainResponse, Value: chain}
+				peer := network.Peer(msg.addr)
+				peer.Send(&message)
+			}
 		case BlockChainResponse:
 			chain := msg.Value.(BlockChain)
 			logger.Println("Received blockchain from", msg.addr)
@@ -237,7 +240,7 @@ func (network *PeerNetwork) HandleEvents() {
 			block := msg.Value.(Block)
 			valid, haveChain := state.AddBlock(&block)
 			if valid && !haveChain {
-				network.RequestBlockChain(block.Hash())
+				network.RequestBlockChain(msg.addr, block.Hash())
 			}
 		case TransactionRequest:
 			key := genKey()
@@ -315,6 +318,14 @@ func (network *PeerNetwork) Peer(addr string) *PeerConn {
 	network.lock.RLock()
 	defer network.lock.RUnlock()
 
+	if len(addr) == 0 {
+		// choose a random peer
+		for _, peer := range network.peers {
+			return peer
+		}
+	}
+
+	// return the requested peer
 	return network.peers[addr]
 }
 
@@ -355,34 +366,36 @@ func (network *PeerNetwork) RequestPayableAddress(addr string) (chan *rsa.Public
 	return expect, nil
 }
 
-func (network *PeerNetwork) RequestBlockChain(hash []byte) {
-	network.lock.RLock()
-	defer network.lock.RUnlock()
+func (network *PeerNetwork) RequestBlockChain(addr string, hash []byte) {
+	peer := network.Peer(addr)
 
-	// pick a random peer
-	message := NetworkMessage{Type: BlockChainRequest, Value: hash}
-	for _, peer := range network.peers {
-		peer.Send(&message)
+	if peer == nil {
+		// either the requested peer has disconnected, or we have no peers
 		return
 	}
+
+	message := NetworkMessage{Type: BlockChainRequest, Value: hash}
+	peer.Send(&message)
 }
 
 func (network *PeerNetwork) BroadcastBlock(b *Block) {
 	message := NetworkMessage{Type: BlockBroadcast, Value: b}
-	network.broadcast(&message)
+	go network.broadcast(&message)
 }
 
 func (network *PeerNetwork) BroadcastTxn(txn *Transaction) {
 	message := NetworkMessage{Type: TransactionBroadcast, Value: txn}
-	network.broadcast(&message)
+	go network.broadcast(&message)
 }
 
 func (network *PeerNetwork) broadcast(msg *NetworkMessage) {
+	time.Sleep(2 * time.Second)
 	network.lock.RLock()
 	defer network.lock.RUnlock()
 
 	// send to all peers
 	for _, peer := range network.peers {
 		peer.Send(msg)
+		time.Sleep(2 * time.Second)
 	}
 }
