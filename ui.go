@@ -171,6 +171,7 @@ func doPay(input chan string) {
 	for i, peer := range peers {
 		fmt.Printf(" %2d -- %s\n", i+1, peer)
 	}
+	fmt.Println("Enter just the peer ID (eg \"1\")")
 
 	peer := ""
 	for len(peer) == 0 {
@@ -194,6 +195,7 @@ func doPay(input chan string) {
 	}
 	var amount uint64
 	fmt.Println("Pay how much? (You have", total, "in your wallet)")
+	fmt.Println("Enter just the value (eg \"10\")")
 	for amount == 0 {
 		fmt.Print(">> ")
 		select {
