@@ -29,6 +29,10 @@ new blocks on a fresh blockchain. It takes three optional flags:
                  end up connected to the entire network of peers. In this case
                  the client will not start a new blockchain but will download
                  and use the network's existing longest blockchain.
+  --delay        Adds random delays to certain network events in order to
+                 simulate a flaky network and cause block-chain forks. Useful
+                 for demoing divergence and recovery of peers with different
+                 block-chains.
   --verbose      Print logs to standard output on most events, including new
                  blocks, transactions, etc.
 

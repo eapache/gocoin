@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"io"
+	"math/rand"
 	"net"
 	"sync"
 	"time"
@@ -389,13 +390,17 @@ func (network *PeerNetwork) BroadcastTxn(txn *Transaction) {
 }
 
 func (network *PeerNetwork) broadcast(msg *NetworkMessage) {
-	time.Sleep(2 * time.Second)
+	if *delay {
+		time.Sleep(time.Duration(rand.Intn(5000)) * time.Millisecond)
+	}
 	network.lock.RLock()
 	defer network.lock.RUnlock()
 
 	// send to all peers
 	for _, peer := range network.peers {
 		peer.Send(msg)
-		time.Sleep(2 * time.Second)
+		if *delay {
+			time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
+		}
 	}
 }
