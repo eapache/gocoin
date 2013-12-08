@@ -31,6 +31,8 @@ func mainLoop() {
 	for text := range input {
 		switch text {
 		case "": // do nothing, ignore
+		case "addr":
+			fmt.Println("This peer is listening on ", network.server.Addr())
 		case "cons":
 			consWallet()
 		case "pay":
@@ -273,6 +275,7 @@ func printHelp() {
 	fmt.Println("  cons   - consolidate wallet into a single key")
 	fmt.Println("  pay    - perform a payment to another peer")
 	fmt.Println()
+	fmt.Println("  addr   - print the listening address of this peer")
 	fmt.Println("  help   - display this help")
 	fmt.Println("  quit   - shut down gocoin (your wallet will be lost)")
 	fmt.Println()

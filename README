@@ -16,6 +16,10 @@ gocoin hard-codes values which should require about 10-15 seconds to mine a
 block on a modern CPU. Each block mined rewards the miner with exactly 10 coins.
 These values seem to work well for demonstration purposes.
 
+NOTE: The included binaries were all compiled with golang version 1.1.2. The
+golang project *just* released version 1.2 and now offers that as the default
+download - we haven't tested gocoin against that version of the compiler.
+
 Building a Network
 ==================
 
@@ -47,8 +51,11 @@ These are the available commands in the UI:
            block and transaction in the primary blockchain (this can get quite
            long when the network has been running a while)
   wallet - prints out a summary of your wallet, mapping keys to coin amounts
+
   cons   - consolidates the value of your current wallet into single key
   pay    - allows you to pay coins to another peer out of your wallet
+
+  addr   - prints the listening network address of the peer
   help   - displays a summary of the interface and flag help
   quit   - shuts down the peer (wallet is lost)
 
