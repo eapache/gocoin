@@ -186,6 +186,7 @@ func (network *PeerNetwork) AcceptNewConns() {
 				if !network.closing && network.peers[addr] == nil {
 					network.peers[addr] = peer
 					go network.ReceiveFromConn(addr)
+					logger.Println("New peer:", addr)
 				} else {
 					conn.Close()
 				}
@@ -271,6 +272,7 @@ func (network *PeerNetwork) HandleEvents() {
 				network.lock.Lock()
 				delete(network.peers, msg.addr)
 				network.lock.Unlock()
+				logger.Println("Lost peer:", msg.addr)
 				if len(network.peers) == 0 {
 					if network.closing {
 						close(network.events)

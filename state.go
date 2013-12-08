@@ -171,10 +171,7 @@ func (s *State) reset() {
 
 	for _, txn := range s.pendingTxns {
 		if s.keys.AddTxn(txn) {
-			logger.Println("Carrying txn")
 			tmp = append(tmp, txn)
-		} else {
-			logger.Println("Discarding txn")
 		}
 	}
 
