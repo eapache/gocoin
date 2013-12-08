@@ -230,6 +230,7 @@ func (network *PeerNetwork) HandleEvents() {
 			peer.Send(&message)
 		case BlockChainResponse:
 			chain := msg.Value.(BlockChain)
+			logger.Println("Received blockchain from", msg.addr)
 			state.AddBlockChain(&chain)
 		case BlockBroadcast:
 			logger.Println("Received block from", msg.addr)

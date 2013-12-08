@@ -123,6 +123,7 @@ func (s *State) AddBlockChain(chain *BlockChain) {
 	defer s.Unlock()
 
 	if len(s.primary.Blocks) < len(chain.Blocks) {
+		logger.Println("Replaced primary blockchain")
 		s.alternates = append(s.alternates, s.primary)
 		s.primary = chain
 		s.reset()
