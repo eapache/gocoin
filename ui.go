@@ -101,12 +101,12 @@ func printState() {
 
 	fmt.Printf("\n%d Stale Chains\n", len(state.alternates))
 
-	fmt.Printf("\n%d Transactions In Progress (+1 miner's fee)\n", state.beingMined - 1)
-	for _, txn := range state.pendingTxns[:state.beingMined - 1] {
+	fmt.Printf("\n%d Transactions In Progress (+1 miner's fee)\n", state.beingMined-1)
+	for _, txn := range state.pendingTxns[:state.beingMined-1] {
 		printTxn(txn)
 	}
 
-	fmt.Printf("\n%d Transactions Pending\n", len(state.pendingTxns) + 1 - state.beingMined)
+	fmt.Printf("\n%d Transactions Pending\n", len(state.pendingTxns)+1-state.beingMined)
 	for _, txn := range state.pendingTxns[state.beingMined-1:] {
 		printTxn(txn)
 	}
