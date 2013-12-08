@@ -94,7 +94,7 @@ func NewPeerNetwork(address, startPeer string) (network *PeerNetwork, err error)
 	var peerAddrs []string
 
 	if startPeer != "" {
-		conn, err := net.Dial("tcp", startPeer)
+		conn, err := net.Dial("tcp4", startPeer)
 		if err != nil {
 			return nil, err
 		}
@@ -129,7 +129,7 @@ func NewPeerNetwork(address, startPeer string) (network *PeerNetwork, err error)
 		payExpects: make(map[string]chan *rsa.PublicKey),
 		events:     make(chan *NetworkMessage),
 	}
-	network.server, err = net.Listen("tcp", address)
+	network.server, err = net.Listen("tcp4", address)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +139,7 @@ func NewPeerNetwork(address, startPeer string) (network *PeerNetwork, err error)
 
 	msg := NetworkMessage{Type: PeerBroadcast, Value: network.server.Addr().String()}
 	for _, addr := range peerAddrs {
-		conn, err := net.Dial("tcp", addr)
+		conn, err := net.Dial("tcp4", addr)
 		if err != nil {
 			continue
 		}

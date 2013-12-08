@@ -41,7 +41,7 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 
 	initialPeer := flag.String("connect", "", "Address of peer to connect to, leave blank for new network")
-	address := flag.String("listen", ":0", "Listening address of peer, default is random localhost port")
+	address := flag.String("listen", "localhost:0", "Listening address of peer, default is random localhost port")
 	verbose := flag.Bool("verbose", false, "Print logs to the terminal")
 	delay = flag.Bool("delay", false, "Delay network events for debugging/demo purposes")
 	flag.Parse()
