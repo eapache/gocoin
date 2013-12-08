@@ -368,23 +368,21 @@ func (network *PeerNetwork) RequestBlockChain(hash []byte) {
 }
 
 func (network *PeerNetwork) BroadcastBlock(b *Block) {
-	network.lock.RLock()
-	defer network.lock.RUnlock()
-
-	// send to all peers
 	message := NetworkMessage{Type: BlockBroadcast, Value: b}
-	for _, peer := range network.peers {
-		peer.Send(&message)
-	}
+	network.broadcast(&message)
 }
 
 func (network *PeerNetwork) BroadcastTxn(txn *Transaction) {
+	message := NetworkMessage{Type: TransactionBroadcast, Value: txn}
+	network.broadcast(&message)
+}
+
+func (network *PeerNetwork) broadcast(msg *NetworkMessage) {
 	network.lock.RLock()
 	defer network.lock.RUnlock()
 
 	// send to all peers
-	message := NetworkMessage{Type: TransactionBroadcast, Value: txn}
 	for _, peer := range network.peers {
-		peer.Send(&message)
+		peer.Send(msg)
 	}
 }
