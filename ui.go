@@ -99,10 +99,18 @@ func printState() {
 	fmt.Printf("\nPrimary Chain (%d Blocks)", len(state.primary.Blocks))
 	printBlockChain(state.primary)
 
-	fmt.Printf("\n%d Pending Transactions (%d being mined)\n", len(state.pendingTxns), state.beingMined)
-	for _, txn := range state.pendingTxns {
+	fmt.Printf("\n%d Stale Chains\n", len(state.alternates))
+
+	fmt.Printf("\n%d Transactions In Progress (+1 miner's fee)\n", state.beingMined - 1)
+	for _, txn := range state.pendingTxns[:state.beingMined - 1] {
 		printTxn(txn)
 	}
+
+	fmt.Printf("\n%d Transactions Pending\n", len(state.pendingTxns) + 1 - state.beingMined)
+	for _, txn := range state.pendingTxns[state.beingMined-1:] {
+		printTxn(txn)
+	}
+
 	fmt.Println()
 }
 
