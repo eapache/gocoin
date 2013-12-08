@@ -20,7 +20,7 @@ Building a Network
 ==================
 
 The program automatically starts listening on a random network port and mining
-new blocks on a fresh blockchain. It takes three optional flags:
+new blocks on a fresh blockchain. It takes four optional flags:
 
   --listen=ADDR  Choose a specific address to listen on; if not specified the
                  default is a random ephemeral port on localhost.
@@ -46,7 +46,7 @@ These are the available commands in the UI:
   state  - prints out the current internal state, including details of each
            block and transaction in the primary blockchain (this can get quite
            long when the network has been running a while)
-  wallet - prints out a summary of your wallet, mapping active keys to value
+  wallet - prints out a summary of your wallet, mapping keys to coin amounts
   cons   - consolidates the value of your current wallet into single key
   pay    - allows you to pay coins to another peer out of your wallet
   help   - displays a summary of the interface and flag help
@@ -71,4 +71,4 @@ try the payment again.
 
 Application state is not persisted in any way outside of memory. When a peer
 exits, its wallet is gone forever. When the last peer in a network exits, that
-blockchain and all transactions are gone forever.
+blockchain and all its transactions are gone forever.
