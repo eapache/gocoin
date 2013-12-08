@@ -69,7 +69,7 @@ func main() {
 	stopper := make(chan bool)
 	go MineForGold(stopper)
 
-	fmt.Println("Startup complete, listening on ", network.server.Addr())
+	fmt.Printf("Startup complete, listening on \"%v\"\n", network.server.Addr())
 
 	mainLoop()
 

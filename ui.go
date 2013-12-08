@@ -32,7 +32,7 @@ func mainLoop() {
 		switch text {
 		case "": // do nothing, ignore
 		case "addr":
-			fmt.Println("This peer is listening on ", network.server.Addr())
+			fmt.Printf("This peer is listening on \"%v\"\n", network.server.Addr())
 		case "cons":
 			consWallet()
 		case "pay":
