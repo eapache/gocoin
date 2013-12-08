@@ -169,14 +169,22 @@ func (s *State) reset() {
 	s.keys = s.primary.Keys.Copy()
 
 	var tmp []*Transaction
-
 	for _, txn := range s.pendingTxns {
 		if s.keys.AddTxn(txn) {
 			tmp = append(tmp, txn)
 		}
 	}
-
 	s.pendingTxns = tmp
+
+	var alts []*BlockChain
+	for _, chain := range s.alternates {
+		if len(s.primary.Blocks) > len(chain.Blocks)+8 {
+			logger.Println("Discarding stale alternate chain")
+		} else {
+			alts = append(alts, chain)
+		}
+	}
+	s.alternates = alts
 }
 
 func (s *State) chainFromHash(hash []byte) *BlockChain {
