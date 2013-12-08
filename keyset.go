@@ -17,7 +17,7 @@ func (set KeySet) Copy() KeySet {
 func (set KeySet) AddTxn(txn *Transaction) bool {
 	valid := txn.VerifySignatures()
 	if !valid {
-		logger.Println("Failed to verify txn signatures")
+		logger.Println("Failed to verify txn signatures!")
 		return false
 	}
 
@@ -25,8 +25,11 @@ func (set KeySet) AddTxn(txn *Transaction) bool {
 
 	for _, input := range txn.Inputs {
 		prev := set[input.Key.N.String()]
-		if prev == nil || !bytes.Equal(prev.Hash(), input.PrevHash) {
-			logger.Println("Transaction missing input")
+		if prev == nil {
+			return false // this is normal if, eg, the txn is stale
+		}
+		if !bytes.Equal(prev.Hash(), input.PrevHash) {
+			logger.Println("Keyset corrupt!")
 			return false
 		}
 		exists, amount := prev.OutputAmount(input.Key)
