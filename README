@@ -16,10 +16,6 @@ gocoin hard-codes values which should require about 10-15 seconds to mine a
 block on a modern CPU. Each block mined rewards the miner with exactly 10 coins.
 These values seem to work well for demonstration purposes.
 
-NOTE: The included binaries were all compiled with golang version 1.1.2. The
-golang project *just* released version 1.2 and now offers that as the default
-download - we haven't tested gocoin against that version of the compiler.
-
 Building a Network
 ==================
 
