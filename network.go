@@ -309,7 +309,7 @@ func (network *PeerNetwork) PeerAddrList() []string {
 	defer network.lock.RUnlock()
 
 	list := make([]string, 0, len(network.peers))
-	for addr, _ := range network.peers {
+	for addr := range network.peers {
 		list = append(list, addr)
 	}
 	return list
